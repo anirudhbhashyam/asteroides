@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+set -e
+
+shopt -s nullglob
+
+RELEASE_NAME=raylib-6.0_macos
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SRC_DIR=${SCRIPT_DIR}/src
+OBJ_DIR=obj
+
+log() {
+    printf '  \033[32m>\033[0m %s\n' "$1"
+}
+
+if [ ! -d "${RELEASE_NAME}" ]; then
+    log "Getting raylib for macos..."
+    curl -LO --fail https://github.com/raysan5/raylib/releases/download/6.0/${RELEASE_NAME}.tar.gz
+    tar -xf "${RELEASE_NAME}.tar.gz"
+    log "Cleanup ${RELEASE_NAME}.tar.gz"
+    rm -f "${RELEASE_NAME}.tar.gz"
+fi
+
+INCLUDE="-I./${RELEASE_NAME}/include -I./src"
+CXXFLAGS="-Wall -Wextra -Werror -Wno-missing-field-initializers -std=c++26 ${INCLUDE}"
+
+FRAMEWORKS="-framework IOKit -framework Cocoa -framework OpenGL"
+LIBS="-L./${RELEASE_NAME}/lib -lraylib"
+RPATH="-Wl,-rpath,./${RELEASE_NAME}/lib"
+LDFLAGS="${FRAMEWORKS} ${LIBS} ${RPATH}"
+
+mkdir -p "${OBJ_DIR}"
+OBJECTS=()
+
+compile() {
+    local src="$1"
+    local name
+    name="$(basename "${src}" .cpp)"
+    local obj="${OBJ_DIR}/${name}.o"
+
+    log "Compiling ${src} -> ${obj}"
+    clang++ -c "${src}" -o "${obj}" ${CXXFLAGS}
+    OBJECTS+=("${obj}")
+}
+
+for file in ${SRC_DIR}/*.cpp; do
+    if [[ ! -f "${file}" ]]; then
+        continue
+    fi
+    compile "${file}"
+done
+
+log "Linking..."
+if clang++ "${OBJECTS[@]}" -o a.out ${LDFLAGS}; then
+    log "Wrote executable a.out"
+else
+    log "Error writing executable"
+    exit 1
+fi

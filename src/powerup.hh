@@ -1,0 +1,71 @@
+#pragma once
+
+#include <array>
+#include <string_view>
+#include <vector>
+#include <cmath>
+#include <numbers>
+
+#include "engine.hh"
+#include "raylib.h"
+#include "raymath.h"
+#include "spaceship.hh"
+#include "sprite.hh"
+
+namespace asteroides {
+
+enum class PowerupType : u8 {
+    DoubleBlaster = 0,
+    Count
+};
+
+struct PowerupConfig {
+    PowerupType type;
+    std::string_view asset_name;
+    f32 drop_chance;
+    f32 world_ttl;
+    f32 effect_duration;
+};
+
+struct Powerup {
+    PowerupType type{ PowerupType::DoubleBlaster };
+    assets::Sprite sprite{ };
+    Vector2 pos{ Vector2Zero() };
+    Vector2 vel{ Vector2Zero() };
+    f32 scale{ 1.5f };
+    f32 radius{ 18.0f };
+    f32 ttl{ 8.0f };
+    f32 max_ttl{ 8.0f };
+    f32 effect_duration{ 10.0f };
+    f32 pulse_phase{ 0.0f };
+};
+
+struct PowerupField {
+    public:
+        static constexpr u64 POWERUP_COUNT{ static_cast<u64>(PowerupType::Count) };
+
+        static constexpr std::array<PowerupConfig, POWERUP_COUNT> DEFAULT_CONFIGS{ {
+            {
+                .type = PowerupType::DoubleBlaster,
+                .asset_name = "double_blaster_powerup.png",
+                .drop_chance = 0.10f,
+                .world_ttl = 8.0f,
+                .effect_duration = 10.0f
+            }
+        } };
+
+        PowerupField() noexcept = default;
+
+        void set_drop_chance(PowerupType type, f32 chance) noexcept;
+        [[nodiscard]] f32 get_drop_chance(PowerupType type) const noexcept;
+
+        void try_spawn(Vector2 origin) noexcept;
+        void update(f32 dt, Spaceship& spaceship) noexcept;
+        void draw() const noexcept;
+
+    private:
+        std::array<PowerupConfig, POWERUP_COUNT> configs{ DEFAULT_CONFIGS };
+        std::vector<Powerup> powerups{ };
+};
+
+} // namespace asteroides
