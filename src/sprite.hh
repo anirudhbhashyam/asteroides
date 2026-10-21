@@ -10,7 +10,7 @@
 
 namespace asteroides::assets {
 
-static constexpr inline std::string_view ASSETS_DIR{ "assets" };
+constexpr inline std::string_view ASSETS_DIR{ "assets" };
 
 struct Sprite {
     public:
