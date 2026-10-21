@@ -5,11 +5,9 @@
 #include <numbers>
 #include <vector>
 
-#include "asteroid.hh"
 #include "engine.hh"
-#include "powerup.hh"
 #include "raylib.h"
-#include "spaceship.hh"
+#include "raymath.h"
 
 namespace asteroides {
 
@@ -27,16 +25,18 @@ struct World {
     public:
         static constexpr Color BACKGROUND_COLOR{ hex_to_color(0x0e1219ff) };
 
-        explicit World(u64 star_count = 120, u64 asteroid_count = 12);
+        explicit World(Vector2 initial_target, u64 star_count = 120);
 
-        void update(f32 dt) noexcept;
-        void draw() const noexcept;
+        void update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept;
+        void draw_background() const noexcept;
+        void begin_camera() const noexcept;
+        void end_camera() const noexcept;
+        void reset_camera(Vector2 target_pos) noexcept;
+
+        [[nodiscard]] Vector2 get_camera_target() const noexcept { return camera.target; }
 
     private:
         std::vector<Star> stars{ };
-        Spaceship spaceship{ };
-        PowerupField powerups{ };
-        AsteroidField asteroids;
         Camera2D camera{ };
         f32 camera_smooth_speed{ 6.0f };
         Vector2 ambient_drift{ -14.0f, 20.0f };

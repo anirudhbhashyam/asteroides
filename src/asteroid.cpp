@@ -258,7 +258,7 @@ void Asteroid::resolve_physics_collision(Asteroid& a, Asteroid& b) noexcept {
     b.angular_vel = std::fmaxf(-240.0f, std::fminf(240.0f, b.angular_vel + tangent_speed * 0.4f));
 }
 
-void AsteroidField::_spawn_explosion(Vector2 origin, f32 parent_scale) noexcept {
+void AsteroidField::spawn_explosion(Vector2 origin, f32 parent_scale) noexcept {
     constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
     const u32 frag_count{ Random::uint(3, 5) };
     const f32 base_offset{ Random::real(0.0f, two_pi) };
@@ -270,11 +270,18 @@ void AsteroidField::_spawn_explosion(Vector2 origin, f32 parent_scale) noexcept 
     }
 }
 
-AsteroidField::AsteroidField(Vector2 initial_center, u64 count) {
-    asteroids.reserve(count);
+AsteroidField::AsteroidField(Vector2 initial_center, u64 count)
+    : target_count{ count } {
+    reset(initial_center);
+}
+
+void AsteroidField::reset(Vector2 initial_center) noexcept {
+    asteroids.clear();
+    fragments.clear();
+    asteroids.reserve(target_count);
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
-    for (u64 i{ 0 }; i < count; ++i) {
+    for (u64 i{ 0 }; i < target_count; ++i) {
         asteroids.push_back(Asteroid::spawn_from_edge(initial_center, w, h));
     }
 }
@@ -299,7 +306,7 @@ void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, Poweru
         }
 
         if (hit) {
-            _spawn_explosion(asteroid.get_pos(), asteroid.get_scale());
+            spawn_explosion(asteroid.get_pos(), asteroid.get_scale());
             powerups.try_spawn(asteroid.get_pos());
             asteroid = Asteroid::spawn_from_edge(view_center, w, h);
         } else if (asteroid.is_offscreen(view_center, w, h)) {
@@ -318,8 +325,8 @@ void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, Poweru
             if (asteroids[i].collides_with(asteroids[j])) {
                 // 35% chance to shatter on impact, 65% chance to bounce with 2D impulse physics
                 if (Random::real() < 0.35f) {
-                    _spawn_explosion(asteroids[i].get_pos(), asteroids[i].get_scale());
-                    _spawn_explosion(asteroids[j].get_pos(), asteroids[j].get_scale());
+                    spawn_explosion(asteroids[i].get_pos(), asteroids[i].get_scale());
+                    spawn_explosion(asteroids[j].get_pos(), asteroids[j].get_scale());
                     asteroids[i] = Asteroid::spawn_from_edge(view_center, w, h);
                     asteroids[j] = Asteroid::spawn_from_edge(view_center, w, h);
                     break;

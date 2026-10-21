@@ -21,14 +21,21 @@ struct Blaster {
             f32 rotation{ 0.0f };
         };
 
+        explicit Blaster(
+            std::string_view asset_name = ASSET_NAME,
+            f32 bolt_speed = 700.0f,
+            f32 fire_cooldown = 0.15f
+        );
+
         void fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept;
         void update(f32 dt, Vector2 view_center) noexcept;
         void draw() const noexcept;
         void activate_double_blaster(f32 duration) noexcept;
+        void clear() noexcept;
         [[nodiscard]] std::vector<Bolt>& get_bolts() noexcept { return bolts; }
 
     private:
-        assets::Sprite sprite{ ASSET_NAME };
+        assets::Sprite sprite;
         std::vector<Bolt> bolts{ };
         f32 speed{ 700.0f };
         f32 cooldown{ 0.15f };

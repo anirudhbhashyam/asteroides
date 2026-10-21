@@ -4,14 +4,57 @@ namespace asteroides {
 
 void Spaceship::draw() const noexcept {
     blaster.draw();
+    if (!is_alive()) return;
+
     if (sprite.is_valid()) {
-        sprite.draw(pos, FRAME_UP, rotation, scale);
+        const Color tint{ hit_flash_timer > 0.0f ? hex_to_color(0xff5555ff) : WHITE };
+        sprite.draw(pos, FRAME_UP, rotation, scale, tint);
     } else {
         DrawCircleV(pos, radius, color);
     }
 }
 
+void Spaceship::take_damage(i32 amount, bool grant_invulnerability) noexcept {
+    if (!is_alive()) return;
+    if (grant_invulnerability && invulnerability_timer > 0.0f) return;
+
+    health = (health > amount) ? (health - amount) : 0;
+    hit_flash_timer = 0.18f;
+    if (grant_invulnerability) {
+        invulnerability_timer = 0.6f;
+    }
+}
+
+void Spaceship::apply_impulse(Vector2 impulse) noexcept {
+    vel = Vector2Add(vel, impulse);
+}
+
+void Spaceship::reset() noexcept {
+    pos = Vector2{
+        static_cast<f32>(GetScreenWidth() / 2),
+        static_cast<f32>(GetScreenHeight() / 2)
+    };
+    vel = Vector2Zero();
+    rotation = 0.0f;
+    health = max_health;
+    invulnerability_timer = 0.0f;
+    hit_flash_timer = 0.0f;
+    blaster.clear();
+}
+
 void Spaceship::update(const f32 dt) noexcept {
+    if (invulnerability_timer > 0.0f) {
+        invulnerability_timer = std::fmaxf(0.0f, invulnerability_timer - dt);
+    }
+    if (hit_flash_timer > 0.0f) {
+        hit_flash_timer = std::fmaxf(0.0f, hit_flash_timer - dt);
+    }
+
+    if (!is_alive()) {
+        blaster.update(dt, pos);
+        return;
+    }
+
     Vector2 directional_acc{ Vector2Zero() };
     f32 k_drag{ 0.01f };
     if (IsKeyDown(KEY_W)) directional_acc.y -= acc.y;
@@ -43,7 +86,6 @@ void Spaceship::update(const f32 dt) noexcept {
     pos = Vector2Add(pos, s);
     vel = Vector2Add(vel, Vector2Scale(net_acc, dt));
 
-    // TODO: Quadratic decay doesn't actually stop, so force.
     if (!has_input && Vector2LengthSqr(vel) < 75.0f) vel = Vector2{ 0.0f, 0.0f };
 
     if (IsKeyDown(KEY_SPACE)) {

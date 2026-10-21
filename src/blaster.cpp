@@ -2,8 +2,19 @@
 
 namespace asteroides {
 
+Blaster::Blaster(std::string_view asset_name, f32 bolt_speed, f32 fire_cooldown)
+    : sprite{ asset_name }
+    , speed{ bolt_speed }
+    , cooldown{ fire_cooldown } {}
+
 void Blaster::activate_double_blaster(f32 duration) noexcept {
     double_blaster_timer = std::fmaxf(double_blaster_timer, duration);
+}
+
+void Blaster::clear() noexcept {
+    bolts.clear();
+    cooldown_timer = 0.0f;
+    double_blaster_timer = 0.0f;
 }
 
 void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept {
@@ -18,7 +29,6 @@ void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept {
     const f32 bolt_rot{ heading_deg - 90.0f };
 
     if (double_blaster_timer > 0.0f) {
-        // Perpendicular lateral vector for twin wing cannons
         const Vector2 right{ std::cosf(rad), std::sinf(rad) };
         const Vector2 offset{ Vector2Scale(right, double_spread_offset) };
 
@@ -33,7 +43,6 @@ void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept {
             .rotation = bolt_rot
         });
     } else {
-        // blaster.png points right (+X), while heading_deg = 0 points up (-Y)
         bolts.push_back(Bolt{
             .pos = spawn_center,
             .vel = bolt_vel,

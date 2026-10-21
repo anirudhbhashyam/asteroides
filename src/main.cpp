@@ -1,6 +1,6 @@
 #include "engine.hh"
+#include "game.hh"
 #include "raylib.h"
-#include "world.hh"
 
 i32 main() {
     constexpr i32 window_width{ 800 };
@@ -12,13 +12,13 @@ i32 main() {
     SetTargetFPS(fps);
 
     {
-        asteroides::World world{ };
+        asteroides::Game game{ };
 
         while (!WindowShouldClose()) {
             const f32 dt{ GetFrameTime() };
-            world.update(dt);
+            game.update(dt);
             BeginDrawing();
-                world.draw();
+                game.draw();
             EndDrawing();
         }
     }

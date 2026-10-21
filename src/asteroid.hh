@@ -60,10 +60,12 @@ struct AsteroidField {
 
         void update(f32 dt, Vector2 view_center, Blaster& blaster, PowerupField& powerups) noexcept;
         void draw() const noexcept;
+        void spawn_explosion(Vector2 origin, f32 parent_scale) noexcept;
+        void reset(Vector2 initial_center) noexcept;
+        [[nodiscard]] std::vector<Asteroid>& get_asteroids() noexcept { return asteroids; }
 
     private:
-        void _spawn_explosion(Vector2 origin, f32 parent_scale) noexcept;
-
+        u64 target_count{ 12 };
         std::vector<Asteroid> asteroids;
         std::vector<Asteroid> fragments;
 };

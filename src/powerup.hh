@@ -48,7 +48,7 @@ struct PowerupField {
             {
                 .type = PowerupType::DoubleBlaster,
                 .asset_name = "double_blaster_powerup.png",
-                .drop_chance = 0.10f,
+                .drop_chance = 0.01f,
                 .world_ttl = 8.0f,
                 .effect_duration = 10.0f
             }
@@ -62,6 +62,7 @@ struct PowerupField {
         void try_spawn(Vector2 origin) noexcept;
         void update(f32 dt, Spaceship& spaceship) noexcept;
         void draw() const noexcept;
+        void clear() noexcept { powerups.clear(); }
 
     private:
         std::array<PowerupConfig, POWERUP_COUNT> configs{ DEFAULT_CONFIGS };

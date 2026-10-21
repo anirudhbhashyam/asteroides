@@ -2,8 +2,7 @@
 
 namespace asteroides {
 
-World::World(u64 star_count, u64 asteroid_count)
-    : asteroids{ spaceship.get_pos(), asteroid_count } {
+World::World(Vector2 initial_target, u64 star_count) {
     stars.reserve(star_count);
 
     const f32 w{ static_cast<f32>(GetScreenWidth()) };
@@ -12,16 +11,16 @@ World::World(u64 star_count, u64 asteroid_count)
 
     camera = Camera2D{
         .offset = Vector2{ w * 0.5f, h * 0.5f },
-        .target = spaceship.get_pos(),
+        .target = initial_target,
         .rotation = 0.0f,
         .zoom = 1.0f
     };
 
     constexpr std::array<Color, 4> palette{ {
-        hex_to_color(0xf8fafcff), // crisp white
-        hex_to_color(0xbae6fdff), // pale sky blue
-        hex_to_color(0xfef08aff), // warm starlight yellow
-        hex_to_color(0xc7d2feff)  // soft indigo-white
+        hex_to_color(0xf8fafcff),
+        hex_to_color(0xbae6fdff),
+        hex_to_color(0xfef08aff),
+        hex_to_color(0xc7d2feff)
     } };
 
     for (u64 i{ 0 }; i < star_count; ++i) {
@@ -41,20 +40,17 @@ World::World(u64 star_count, u64 asteroid_count)
     }
 }
 
-void World::update(f32 dt) noexcept {
-    spaceship.update(dt);
+void World::reset_camera(Vector2 target_pos) noexcept {
+    camera.target = target_pos;
+}
 
-    // Smooth camera follow toward the spaceship's world position
+void World::update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept {
     const f32 lerp_factor{ std::fminf(1.0f, camera_smooth_speed * dt) };
-    camera.target = Vector2Lerp(camera.target, spaceship.get_pos(), lerp_factor);
-
-    asteroids.update(dt, camera.target, spaceship.get_blaster(), powerups);
-    powerups.update(dt, spaceship);
+    camera.target = Vector2Lerp(camera.target, target_pos, lerp_factor);
 
     const f32 w{ static_cast<f32>(GetScreenWidth()) };
     const f32 h{ static_cast<f32>(GetScreenHeight()) };
-    const Vector2 ship_vel{ spaceship.get_vel() };
-    const Vector2 base_vel{ Vector2Subtract(ambient_drift, ship_vel) };
+    const Vector2 base_vel{ Vector2Subtract(ambient_drift, target_vel) };
     constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
 
     for (Star& star : stars) {
@@ -71,7 +67,7 @@ void World::update(f32 dt) noexcept {
     }
 }
 
-void World::draw() const noexcept {
+void World::draw_background() const noexcept {
     ClearBackground(BACKGROUND_COLOR);
 
     for (const Star& star : stars) {
@@ -79,11 +75,13 @@ void World::draw() const noexcept {
         const f32 alpha{ std::fmaxf(0.05f, std::fminf(1.0f, star.base_alpha * twinkle)) };
         DrawRectangleV(star.pos, Vector2{ star.size, star.size }, Fade(star.color, alpha));
     }
+}
 
+void World::begin_camera() const noexcept {
     BeginMode2D(camera);
-        asteroids.draw();
-        powerups.draw();
-        spaceship.draw();
+}
+
+void World::end_camera() const noexcept {
     EndMode2D();
 }
 
