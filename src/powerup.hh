@@ -1,10 +1,10 @@
 #pragma once
 
 #include <array>
-#include <string_view>
-#include <vector>
 #include <cmath>
 #include <numbers>
+#include <string_view>
+#include <vector>
 
 #include "engine.hh"
 #include "raylib.h"
@@ -13,11 +13,6 @@
 #include "sprite.hh"
 
 namespace asteroides {
-
-enum class PowerupType : u8 {
-    DoubleBlaster = 0,
-    Count
-};
 
 struct PowerupConfig {
     PowerupType type;
@@ -48,6 +43,20 @@ struct PowerupField {
             {
                 .type = PowerupType::DoubleBlaster,
                 .asset_name = "double_blaster_powerup.png",
+                .drop_chance = 0.01f,
+                .world_ttl = 8.0f,
+                .effect_duration = 10.0f
+            },
+            {
+                .type = PowerupType::IncreaseHealth,
+                .asset_name = "increase_health_powerup.png",
+                .drop_chance = 0.05f,
+                .world_ttl = 8.0f,
+                .effect_duration = 0.0f
+            },
+            {
+                .type = PowerupType::Shield,
+                .asset_name = "shield_powerup.png",
                 .drop_chance = 0.01f,
                 .world_ttl = 8.0f,
                 .effect_duration = 10.0f

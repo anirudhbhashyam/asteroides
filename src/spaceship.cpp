@@ -12,10 +12,46 @@ void Spaceship::draw() const noexcept {
     } else {
         DrawCircleV(pos, radius, color);
     }
+
+    if (is_shielded()) {
+        const f32 shield_remaining{ get_powerup_remaining(PowerupType::Shield) };
+        const f32 pulse{ std::sinf(halo_pulse_timer) };
+        const f32 halo_radius{ get_radius() + 8.0f + 1.5f * pulse };
+        const f32 expiry_fade{
+            shield_remaining < 2.0f
+                ? (0.45f + 0.55f * (0.5f + 0.5f * std::sinf(halo_pulse_timer * 3.0f)))
+                : 1.0f
+        };
+
+        DrawCircleGradient(
+            pos,
+            halo_radius + 3.0f,
+            Fade(hex_to_color(0x5eead4ff), 0.06f * expiry_fade),
+            Fade(hex_to_color(0x38bdf8ff), 0.28f * expiry_fade)
+        );
+        DrawRing(
+            pos,
+            halo_radius - 2.5f,
+            halo_radius + 1.0f,
+            0.0f,
+            360.0f,
+            40,
+            Fade(hex_to_color(0x5eead4ff), 0.85f * expiry_fade)
+        );
+        DrawRing(
+            pos,
+            halo_radius + 1.0f,
+            halo_radius + 3.0f,
+            0.0f,
+            360.0f,
+            40,
+            Fade(hex_to_color(0x60a5faff), 0.45f * expiry_fade)
+        );
+    }
 }
 
 void Spaceship::take_damage(i32 amount, bool grant_invulnerability) noexcept {
-    if (!is_alive()) return;
+    if (!is_alive() || is_shielded()) return;
     if (grant_invulnerability && invulnerability_timer > 0.0f) return;
 
     health = (health > amount) ? (health - amount) : 0;
@@ -23,6 +59,29 @@ void Spaceship::take_damage(i32 amount, bool grant_invulnerability) noexcept {
     if (grant_invulnerability) {
         invulnerability_timer = 0.6f;
     }
+}
+
+void Spaceship::heal_percent(f32 fraction) noexcept {
+    if (!is_alive()) return;
+    const i32 heal_amount{ static_cast<i32>(static_cast<f32>(max_health) * fraction) };
+    health = std::min(max_health, health + heal_amount);
+}
+
+void Spaceship::activate_powerup(PowerupType type, f32 duration) noexcept {
+    const u64 idx{ static_cast<u64>(type) };
+    if (idx < POWERUP_COUNT) {
+        powerup_timers[idx] = std::fmaxf(powerup_timers[idx], duration);
+    }
+}
+
+bool Spaceship::is_powerup_active(PowerupType type) const noexcept {
+    const u64 idx{ static_cast<u64>(type) };
+    return (idx < POWERUP_COUNT) && (powerup_timers[idx] > 0.0f);
+}
+
+f32 Spaceship::get_powerup_remaining(PowerupType type) const noexcept {
+    const u64 idx{ static_cast<u64>(type) };
+    return (idx < POWERUP_COUNT) ? powerup_timers[idx] : 0.0f;
 }
 
 void Spaceship::apply_impulse(Vector2 impulse) noexcept {
@@ -39,6 +98,8 @@ void Spaceship::reset() noexcept {
     health = max_health;
     invulnerability_timer = 0.0f;
     hit_flash_timer = 0.0f;
+    powerup_timers.fill(0.0f);
+    halo_pulse_timer = 0.0f;
     blaster.clear();
 }
 
@@ -48,6 +109,18 @@ void Spaceship::update(const f32 dt) noexcept {
     }
     if (hit_flash_timer > 0.0f) {
         hit_flash_timer = std::fmaxf(0.0f, hit_flash_timer - dt);
+    }
+
+    // Common powerup timer update across all active powerup effects
+    for (f32& timer : powerup_timers) {
+        if (timer > 0.0f) {
+            timer = std::fmaxf(0.0f, timer - dt);
+        }
+    }
+
+    if (is_shielded()) {
+        constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
+        halo_pulse_timer = std::fmodf(halo_pulse_timer + 6.0f * dt, two_pi);
     }
 
     if (!is_alive()) {
@@ -89,7 +162,7 @@ void Spaceship::update(const f32 dt) noexcept {
     if (!has_input && Vector2LengthSqr(vel) < 75.0f) vel = Vector2{ 0.0f, 0.0f };
 
     if (IsKeyDown(KEY_SPACE)) {
-        blaster.fire(pos, vel, rotation);
+        blaster.fire(pos, vel, rotation, is_powerup_active(PowerupType::DoubleBlaster));
     }
     blaster.update(dt, pos);
 }

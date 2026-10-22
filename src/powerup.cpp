@@ -53,17 +53,13 @@ void PowerupField::update(f32 dt, Spaceship& spaceship) noexcept {
         it->pulse_phase = std::fmodf(it->pulse_phase + 5.0f * dt, two_pi);
 
         if (CheckCollisionCircles(ship_pos, ship_radius, it->pos, it->radius)) {
-            switch (it->type) {
-                case PowerupType::DoubleBlaster:
-                    spaceship.get_blaster().activate_double_blaster(it->effect_duration);
-                    break;
-                case PowerupType::Count:
-                    break;
+            if (it->type == PowerupType::IncreaseHealth) {
+                spaceship.heal_percent(0.25f);
+            } else if (it->effect_duration > 0.0f) {
+                spaceship.activate_powerup(it->type, it->effect_duration);
             }
-            // Erasing destroys the Powerup and unloads its Sprite via ~Sprite()
             it = powerups.erase(it);
         } else if (it->ttl <= 0.0f) {
-            // Uncollected powerup expired: erase destroys it and unloads its Sprite
             it = powerups.erase(it);
         } else {
             ++it;

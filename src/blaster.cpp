@@ -7,17 +7,12 @@ Blaster::Blaster(std::string_view asset_name, f32 bolt_speed, f32 fire_cooldown)
     , speed{ bolt_speed }
     , cooldown{ fire_cooldown } {}
 
-void Blaster::activate_double_blaster(f32 duration) noexcept {
-    double_blaster_timer = std::fmaxf(double_blaster_timer, duration);
-}
-
 void Blaster::clear() noexcept {
     bolts.clear();
     cooldown_timer = 0.0f;
-    double_blaster_timer = 0.0f;
 }
 
-void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept {
+void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg, bool double_shot) noexcept {
     if (cooldown_timer > 0.0f) return;
 
     cooldown_timer = cooldown;
@@ -28,7 +23,7 @@ void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept {
     const Vector2 bolt_vel{ Vector2Scale(dir, speed + forward_ship_speed) };
     const f32 bolt_rot{ heading_deg - 90.0f };
 
-    if (double_blaster_timer > 0.0f) {
+    if (double_shot) {
         const Vector2 right{ std::cosf(rad), std::sinf(rad) };
         const Vector2 offset{ Vector2Scale(right, double_spread_offset) };
 
@@ -54,9 +49,6 @@ void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept {
 void Blaster::update(f32 dt, Vector2 view_center) noexcept {
     if (cooldown_timer > 0.0f) {
         cooldown_timer = std::fmaxf(0.0f, cooldown_timer - dt);
-    }
-    if (double_blaster_timer > 0.0f) {
-        double_blaster_timer = std::fmaxf(0.0f, double_blaster_timer - dt);
     }
 
     const f32 half_w{ static_cast<f32>(GetScreenWidth()) * 0.5f };

@@ -1,6 +1,9 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <numbers>
 #include <string_view>
 
 #include "blaster.hh"
@@ -12,12 +15,20 @@
 
 namespace asteroides {
 
+enum class PowerupType : u8 {
+    DoubleBlaster = 0,
+    IncreaseHealth,
+    Shield,
+    Count
+};
+
 struct Spaceship {
     public:
         static constexpr std::string_view ASSET_NAME{ "spaceship.png" };
         static constexpr f32 SPRITE_SIZE{ 32.0f };
         static constexpr Rectangle FRAME_UP{ 0.0f, 0.0f, SPRITE_SIZE, SPRITE_SIZE };
         static constexpr i32 DEFAULT_MAX_HEALTH{ 100 };
+        static constexpr u64 POWERUP_COUNT{ static_cast<u64>(PowerupType::Count) };
 
         static constexpr ParticleEffect HIT_SPARK_EFFECT{
             .count_min = 10,
@@ -66,6 +77,8 @@ struct Spaceship {
         void draw() const noexcept;
         void update(const f32 dt) noexcept;
         void take_damage(i32 amount, bool grant_invulnerability = false) noexcept;
+        void heal_percent(f32 fraction) noexcept;
+        void activate_powerup(PowerupType type, f32 duration) noexcept;
         void apply_impulse(Vector2 impulse) noexcept;
         void reset() noexcept;
 
@@ -76,7 +89,10 @@ struct Spaceship {
         [[nodiscard]] i32 get_health() const noexcept { return health; }
         [[nodiscard]] i32 get_max_health() const noexcept { return max_health; }
         [[nodiscard]] bool is_alive() const noexcept { return health > 0; }
-        [[nodiscard]] bool is_invulnerable() const noexcept { return invulnerability_timer > 0.0f; }
+        [[nodiscard]] bool is_powerup_active(PowerupType type) const noexcept;
+        [[nodiscard]] f32 get_powerup_remaining(PowerupType type) const noexcept;
+        [[nodiscard]] bool is_shielded() const noexcept { return is_powerup_active(PowerupType::Shield); }
+        [[nodiscard]] bool is_invulnerable() const noexcept { return invulnerability_timer > 0.0f || is_shielded(); }
 
     private:
         assets::Sprite sprite{ ASSET_NAME };
@@ -93,6 +109,8 @@ struct Spaceship {
         i32 health{ DEFAULT_MAX_HEALTH };
         f32 invulnerability_timer{ 0.0f };
         f32 hit_flash_timer{ 0.0f };
+        std::array<f32, POWERUP_COUNT> powerup_timers{ };
+        f32 halo_pulse_timer{ 0.0f };
 };
 
 } // namespace asteroides

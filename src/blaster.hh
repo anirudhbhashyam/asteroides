@@ -27,10 +27,9 @@ struct Blaster {
             f32 fire_cooldown = 0.15f
         );
 
-        void fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noexcept;
+        void fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg, bool double_shot = false) noexcept;
         void update(f32 dt, Vector2 view_center) noexcept;
         void draw() const noexcept;
-        void activate_double_blaster(f32 duration) noexcept;
         void clear() noexcept;
         [[nodiscard]] std::vector<Bolt>& get_bolts() noexcept { return bolts; }
 
@@ -40,7 +39,6 @@ struct Blaster {
         f32 speed{ 700.0f };
         f32 cooldown{ 0.15f };
         f32 cooldown_timer{ 0.0f };
-        f32 double_blaster_timer{ 0.0f };
         f32 scale{ 1.0f };
         f32 muzzle_offset{ 20.0f };
         f32 double_spread_offset{ 10.0f };
