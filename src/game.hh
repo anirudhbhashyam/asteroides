@@ -7,6 +7,7 @@
 #include "powerup.hh"
 #include "raylib.h"
 #include "raymath.h"
+#include "screen.hh"
 #include "spaceship.hh"
 #include "world.hh"
 
@@ -22,8 +23,8 @@ struct Game {
 
     private:
         void _handle_combat(Vector2 view_center) noexcept;
-        void _draw_hud() const noexcept;
 
+        ScreenManager screens{ };
         Spaceship spaceship{ };
         World world;
         ParticleSystem particles{ };

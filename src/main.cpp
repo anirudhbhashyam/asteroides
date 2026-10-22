@@ -9,6 +9,7 @@ i32 main() {
     asteroides::Random::init();
     SetTraceLogLevel(LOG_WARNING);
     InitWindow(window_width, window_height, "Asteroids on steroids");
+    SetExitKey(KEY_NULL);
     SetTargetFPS(fps);
 
     {

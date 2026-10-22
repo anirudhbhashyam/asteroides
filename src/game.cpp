@@ -16,21 +16,38 @@ void Game::reset() noexcept {
 }
 
 void Game::update(f32 dt) noexcept {
-    if (!spaceship.is_alive() && IsKeyPressed(KEY_R)) {
+    const ScreenAction action{ screens.update(dt, spaceship.is_alive()) };
+    if (action == ScreenAction::StartGame ||
+        action == ScreenAction::RestartGame ||
+        action == ScreenAction::ReturnToTitle) {
         reset();
         return;
     }
 
-    spaceship.update(dt);
-    world.update(dt, spaceship.get_pos(), spaceship.get_vel());
-
+    const LayerPolicy policy{ screens.get_policy() };
     const Vector2 view_center{ world.get_camera_target() };
-    asteroids.update(dt, view_center, spaceship.get_blaster(), powerups);
-    enemies.update(dt, spaceship.get_pos(), spaceship.is_alive(), view_center);
-    powerups.update(dt, spaceship);
-    particles.update(dt);
 
-    _handle_combat(view_center);
+    if (has_layer(policy.update_mask, Layer::Combat)) {
+        spaceship.update(dt);
+    }
+
+    if (has_layer(policy.update_mask, Layer::Background)) {
+        const Vector2 target_vel{
+            has_layer(policy.update_mask, Layer::Combat) ? spaceship.get_vel() : Vector2Zero()
+        };
+        world.update(dt, spaceship.get_pos(), target_vel);
+    }
+
+    if (has_layer(policy.update_mask, Layer::Asteroids)) {
+        asteroids.update(dt, view_center, spaceship.get_blaster(), powerups);
+        particles.update(dt);
+    }
+
+    if (has_layer(policy.update_mask, Layer::Combat)) {
+        enemies.update(dt, spaceship.get_pos(), spaceship.is_alive(), view_center);
+        powerups.update(dt, spaceship);
+        _handle_combat(view_center);
+    }
 }
 
 void Game::_handle_combat(Vector2 view_center) noexcept {
@@ -123,58 +140,34 @@ void Game::_handle_combat(Vector2 view_center) noexcept {
     }
 }
 
-void Game::_draw_hud() const noexcept {
-    constexpr i32 bar_x{ 20 };
-    constexpr i32 bar_y{ 20 };
-    constexpr i32 bar_w{ 180 };
-    constexpr i32 bar_h{ 16 };
-
-    const f32 ratio{
-        static_cast<f32>(spaceship.get_health()) / static_cast<f32>(spaceship.get_max_health())
-    };
-    const i32 fill_w{ static_cast<i32>(static_cast<f32>(bar_w) * ratio) };
-    const Color fill_color{
-        ratio > 0.5f ? hex_to_color(0x22c55eff) :
-        ratio > 0.25f ? hex_to_color(0xf59e0bff) :
-                        hex_to_color(0xef4444ff)
-    };
-
-    DrawRectangle(bar_x - 2, bar_y - 2, bar_w + 4, bar_h + 4, hex_to_color(0x334155ff));
-    DrawRectangle(bar_x, bar_y, bar_w, bar_h, hex_to_color(0x0f172aff));
-    if (fill_w > 0) {
-        DrawRectangle(bar_x, bar_y, fill_w, bar_h, fill_color);
-    }
-
-    if (!spaceship.is_alive()) {
-        const i32 w{ GetScreenWidth() };
-        const i32 h{ GetScreenHeight() };
-        DrawRectangle(0, 0, w, h, Fade(BLACK, 0.55f));
-
-        const char* title{ "GAME OVER" };
-        const char* prompt{ "Press R to Restart" };
-        constexpr i32 title_size{ 48 };
-        constexpr i32 prompt_size{ 22 };
-
-        const i32 title_w{ MeasureText(title, title_size) };
-        const i32 prompt_w{ MeasureText(prompt, prompt_size) };
-
-        DrawText(title, (w - title_w) / 2, h / 2 - 40, title_size, hex_to_color(0xfe166dff));
-        DrawText(prompt, (w - prompt_w) / 2, h / 2 + 24, prompt_size, hex_to_color(0xf8fafcff));
-    }
-}
-
 void Game::draw() const noexcept {
-    world.draw_background();
+    const LayerPolicy policy{ screens.get_policy() };
+
+    if (has_layer(policy.draw_mask, Layer::Background)) {
+        world.draw_background();
+    }
 
     world.begin_camera();
-        asteroids.draw();
-        powerups.draw();
-        enemies.draw();
-        spaceship.draw();
-        particles.draw();
+        if (has_layer(policy.draw_mask, Layer::Asteroids)) {
+            asteroids.draw();
+        }
+        if (has_layer(policy.draw_mask, Layer::Combat)) {
+            powerups.draw();
+            enemies.draw();
+            spaceship.draw();
+        }
+        if (has_layer(policy.draw_mask, Layer::Asteroids)) {
+            particles.draw();
+        }
     world.end_camera();
 
-    _draw_hud();
+    if (has_layer(policy.draw_mask, Layer::Hud)) {
+        screens.draw_hud(spaceship);
+    }
+
+    if (has_layer(policy.draw_mask, Layer::Overlay)) {
+        screens.draw_overlay();
+    }
 }
 
 } // namespace asteroides
