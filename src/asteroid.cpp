@@ -156,6 +156,19 @@ Asteroid Asteroid::spawn_from_edge(Vector2 view_center, i32 screen_w, i32 screen
     return asteroid;
 }
 
+Asteroid Asteroid::spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale) noexcept {
+    Asteroid asteroid{ };
+    const auto pixels{ generate_pixels() };
+    asteroid.sprite = assets::Sprite{ pixels.data(), SPRITE_SIZE, SPRITE_SIZE };
+    asteroid.pos = origin;
+    asteroid.vel = velocity;
+    asteroid.scale = custom_scale;
+    asteroid.radius = 9.0f * asteroid.scale;
+    asteroid.rotation = Random::real(0.0f, 360.0f);
+    asteroid.angular_vel = Random::real(-60.0f, 60.0f);
+    return asteroid;
+}
+
 Asteroid Asteroid::spawn_fragment(Vector2 origin, f32 parent_scale, f32 angle_rad) noexcept {
     Asteroid frag{ };
     const auto pixels{ generate_pixels() };
@@ -286,6 +299,15 @@ void AsteroidField::reset(Vector2 initial_center) noexcept {
     }
 }
 
+void AsteroidField::clear() noexcept {
+    asteroids.clear();
+    fragments.clear();
+}
+
+void AsteroidField::spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale) noexcept {
+    asteroids.push_back(Asteroid::spawn_custom(origin, velocity, custom_scale));
+}
+
 void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, PowerupField& powerups) noexcept {
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
@@ -293,12 +315,12 @@ void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, Poweru
 
     auto& bolts{ blaster.get_bolts() };
 
-    for (Asteroid& asteroid : asteroids) {
-        asteroid.update(dt);
+    for (auto ast_it{ asteroids.begin() }; ast_it != asteroids.end();) {
+        ast_it->update(dt);
 
         bool hit{ false };
         for (auto it{ bolts.begin() }; it != bolts.end(); ++it) {
-            if (asteroid.collides_with(it->pos, bolt_radius)) {
+            if (ast_it->collides_with(it->pos, bolt_radius)) {
                 bolts.erase(it);
                 hit = true;
                 break;
@@ -306,11 +328,23 @@ void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, Poweru
         }
 
         if (hit) {
-            spawn_explosion(asteroid.get_pos(), asteroid.get_scale());
-            powerups.try_spawn(asteroid.get_pos());
-            asteroid = Asteroid::spawn_from_edge(view_center, w, h);
-        } else if (asteroid.is_offscreen(view_center, w, h)) {
-            asteroid = Asteroid::spawn_from_edge(view_center, w, h);
+            spawn_explosion(ast_it->get_pos(), ast_it->get_scale());
+            powerups.try_spawn(ast_it->get_pos());
+            if (target_count > 0) {
+                *ast_it = Asteroid::spawn_from_edge(view_center, w, h);
+                ++ast_it;
+            } else {
+                ast_it = asteroids.erase(ast_it);
+            }
+        } else if (ast_it->is_offscreen(view_center, w, h)) {
+            if (target_count > 0) {
+                *ast_it = Asteroid::spawn_from_edge(view_center, w, h);
+                ++ast_it;
+            } else {
+                ast_it = asteroids.erase(ast_it);
+            }
+        } else {
+            ++ast_it;
         }
     }
 

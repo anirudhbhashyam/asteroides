@@ -103,7 +103,7 @@ void Spaceship::reset() noexcept {
     blaster.clear();
 }
 
-void Spaceship::update(const f32 dt) noexcept {
+void Spaceship::update(const f32 dt, const InputState& input) noexcept {
     if (invulnerability_timer > 0.0f) {
         invulnerability_timer = std::fmaxf(0.0f, invulnerability_timer - dt);
     }
@@ -128,12 +128,11 @@ void Spaceship::update(const f32 dt) noexcept {
         return;
     }
 
-    Vector2 directional_acc{ Vector2Zero() };
+    Vector2 directional_acc{
+        input.move_axis.x * acc.x,
+        input.move_axis.y * acc.y
+    };
     f32 k_drag{ 0.01f };
-    if (IsKeyDown(KEY_W)) directional_acc.y -= acc.y;
-    if (IsKeyDown(KEY_S)) directional_acc.y += acc.y;
-    if (IsKeyDown(KEY_A)) directional_acc.x -= acc.x;
-    if (IsKeyDown(KEY_D)) directional_acc.x += acc.x;
     bool has_input{ directional_acc.x != 0.0f || directional_acc.y != 0.0f };
     if (has_input) {
         directional_acc = Vector2Multiply(Vector2Normalize(directional_acc), acc);
@@ -143,7 +142,7 @@ void Spaceship::update(const f32 dt) noexcept {
     }
     Vector2 drag_acc{ Vector2Zero() };
     f32 speed{ Vector2Length(vel) };
-    if (speed > 0) {
+    if (speed > 0 && dt > 0.0f) {
         f32 max_braking_acc{ speed / dt };
         f32 braking{ has_input ? 0.0f : 600.0f };
         f32 drag_magnitude{ std::fminf(0.5f * k_drag * speed * speed + braking, max_braking_acc) };
@@ -161,7 +160,7 @@ void Spaceship::update(const f32 dt) noexcept {
 
     if (!has_input && Vector2LengthSqr(vel) < 75.0f) vel = Vector2{ 0.0f, 0.0f };
 
-    if (IsKeyDown(KEY_SPACE)) {
+    if (input.fire_down) {
         blaster.fire(pos, vel, rotation, is_powerup_active(PowerupType::DoubleBlaster));
     }
     blaster.update(dt, pos);

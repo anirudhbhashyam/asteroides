@@ -52,6 +52,8 @@ struct ParticleSystem {
         void update(f32 dt) noexcept;
         void draw() const noexcept;
         void clear() noexcept;
+        [[nodiscard]] const std::vector<Particle>& get_particles() const noexcept { return particles; }
+        [[nodiscard]] u64 count() const noexcept { return static_cast<u64>(particles.size()); }
 
     private:
         std::vector<Particle> particles{ };

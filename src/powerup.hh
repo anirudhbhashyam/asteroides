@@ -69,9 +69,11 @@ struct PowerupField {
         [[nodiscard]] f32 get_drop_chance(PowerupType type) const noexcept;
 
         void try_spawn(Vector2 origin) noexcept;
+        void spawn_specific(PowerupType type, Vector2 origin, Vector2 vel = Vector2Zero()) noexcept;
         void update(f32 dt, Spaceship& spaceship) noexcept;
         void draw() const noexcept;
         void clear() noexcept { powerups.clear(); }
+        [[nodiscard]] const std::vector<Powerup>& get_powerups() const noexcept { return powerups; }
 
     private:
         std::array<PowerupConfig, POWERUP_COUNT> configs{ DEFAULT_CONFIGS };

@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <string_view>
 
 #include "engine.hh"
 #include "raylib.h"
@@ -77,11 +78,12 @@ struct ScreenManager {
     public:
         ScreenManager() noexcept = default;
 
-        [[nodiscard]] ScreenAction update(f32 dt, bool player_alive) noexcept;
+        [[nodiscard]] ScreenAction update(f32 dt, const InputState& input, bool player_alive) noexcept;
         void draw_hud(const Spaceship& spaceship) const noexcept;
         void draw_overlay() const noexcept;
 
         [[nodiscard]] ScreenState get_state() const noexcept { return state; }
+        [[nodiscard]] std::string_view get_state_name() const noexcept;
         [[nodiscard]] LayerPolicy get_policy() const noexcept { return get_layer_policy(state); }
         void set_state(ScreenState new_state) noexcept { state = new_state; }
 

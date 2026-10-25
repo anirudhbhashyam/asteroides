@@ -28,6 +28,7 @@ struct Asteroid {
 
         static std::array<Color, PIXEL_COUNT> generate_pixels() noexcept;
         static Asteroid spawn_from_edge(Vector2 view_center, i32 screen_w, i32 screen_h) noexcept;
+        static Asteroid spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale = 2.2f) noexcept;
         static Asteroid spawn_fragment(Vector2 origin, f32 parent_scale, f32 angle_rad) noexcept;
 
         void update(f32 dt) noexcept;
@@ -38,6 +39,8 @@ struct Asteroid {
         [[nodiscard]] bool collides_with(const Asteroid& other) const noexcept;
         static void resolve_physics_collision(Asteroid& a, Asteroid& b) noexcept;
         [[nodiscard]] Vector2 get_pos() const noexcept { return pos; }
+        [[nodiscard]] Vector2 get_vel() const noexcept { return vel; }
+        [[nodiscard]] f32 get_rotation() const noexcept { return rotation; }
         [[nodiscard]] f32 get_scale() const noexcept { return scale; }
         [[nodiscard]] f32 get_radius() const noexcept { return radius; }
 
@@ -61,8 +64,13 @@ struct AsteroidField {
         void update(f32 dt, Vector2 view_center, Blaster& blaster, PowerupField& powerups) noexcept;
         void draw() const noexcept;
         void spawn_explosion(Vector2 origin, f32 parent_scale) noexcept;
+        void spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale = 2.2f) noexcept;
+        void clear() noexcept;
+        void set_target_count(u64 count) noexcept { target_count = count; }
         void reset(Vector2 initial_center) noexcept;
         [[nodiscard]] std::vector<Asteroid>& get_asteroids() noexcept { return asteroids; }
+        [[nodiscard]] const std::vector<Asteroid>& get_asteroids() const noexcept { return asteroids; }
+        [[nodiscard]] const std::vector<Asteroid>& get_fragments() const noexcept { return fragments; }
 
     private:
         u64 target_count{ 12 };

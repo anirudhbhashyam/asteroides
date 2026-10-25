@@ -1,29 +1,19 @@
 #include "engine.hh"
 #include "game.hh"
-#include "raylib.h"
 
 i32 main() {
-    constexpr i32 window_width{ 800 };
-    constexpr i32 window_height{ 600 };
-    constexpr i32 fps{ 60 };
-    asteroides::Random::init();
-    SetTraceLogLevel(LOG_WARNING);
-    InitWindow(window_width, window_height, "Asteroids on steroids");
-    SetExitKey(KEY_NULL);
-    SetTargetFPS(fps);
+    asteroides::Engine engine{ };
 
     {
         asteroides::Game game{ };
 
-        while (!WindowShouldClose()) {
-            const f32 dt{ GetFrameTime() };
-            game.update(dt);
-            BeginDrawing();
-                game.draw();
-            EndDrawing();
+        while (engine.is_running()) {
+            engine.begin_frame();
+            game.update(engine);
+            game.draw(engine);
+            engine.end_frame();
         }
     }
 
-    CloseWindow();
     return 0;
 }

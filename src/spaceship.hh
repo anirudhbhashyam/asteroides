@@ -75,19 +75,27 @@ struct Spaceship {
         };
 
         void draw() const noexcept;
-        void update(const f32 dt) noexcept;
+        void update(const f32 dt, const InputState& input) noexcept;
         void take_damage(i32 amount, bool grant_invulnerability = false) noexcept;
         void heal_percent(f32 fraction) noexcept;
         void activate_powerup(PowerupType type, f32 duration) noexcept;
         void apply_impulse(Vector2 impulse) noexcept;
         void reset() noexcept;
 
+        void set_pos(Vector2 new_pos) noexcept { pos = new_pos; }
+        void set_vel(Vector2 new_vel) noexcept { vel = new_vel; }
+        void set_rotation(f32 new_rotation) noexcept { rotation = new_rotation; }
+        void set_health(i32 new_health) noexcept { health = std::clamp(new_health, 0, max_health); }
+
         [[nodiscard]] Blaster& get_blaster() noexcept { return blaster; }
+        [[nodiscard]] const Blaster& get_blaster() const noexcept { return blaster; }
         [[nodiscard]] Vector2 get_pos() const noexcept { return pos; }
         [[nodiscard]] Vector2 get_vel() const noexcept { return vel; }
+        [[nodiscard]] f32 get_rotation() const noexcept { return rotation; }
         [[nodiscard]] f32 get_radius() const noexcept { return radius * scale; }
         [[nodiscard]] i32 get_health() const noexcept { return health; }
         [[nodiscard]] i32 get_max_health() const noexcept { return max_health; }
+        [[nodiscard]] f32 get_invulnerability_timer() const noexcept { return invulnerability_timer; }
         [[nodiscard]] bool is_alive() const noexcept { return health > 0; }
         [[nodiscard]] bool is_powerup_active(PowerupType type) const noexcept;
         [[nodiscard]] f32 get_powerup_remaining(PowerupType type) const noexcept;

@@ -2,13 +2,13 @@
 
 namespace asteroides {
 
-ScreenAction ScreenManager::update(f32 dt, bool player_alive) noexcept {
+ScreenAction ScreenManager::update(f32 dt, const InputState& input, bool player_alive) noexcept {
     constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
     pulse_timer = std::fmodf(pulse_timer + 3.5f * dt, two_pi);
 
     switch (state) {
         case ScreenState::Start:
-            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+            if (input.confirm_pressed) {
                 state = ScreenState::Playing;
                 return ScreenAction::StartGame;
             }
@@ -19,33 +19,33 @@ ScreenAction ScreenManager::update(f32 dt, bool player_alive) noexcept {
                 state = ScreenState::GameOver;
                 return ScreenAction::None;
             }
-            if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
+            if (input.pause_pressed) {
                 state = ScreenState::Paused;
                 return ScreenAction::None;
             }
             break;
 
         case ScreenState::Paused:
-            if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+            if (input.pause_pressed || input.confirm_pressed) {
                 state = ScreenState::Playing;
                 return ScreenAction::ResumeGame;
             }
-            if (IsKeyPressed(KEY_R)) {
+            if (input.restart_pressed) {
                 state = ScreenState::Playing;
                 return ScreenAction::RestartGame;
             }
-            if (IsKeyPressed(KEY_M)) {
+            if (input.menu_pressed) {
                 state = ScreenState::Start;
                 return ScreenAction::ReturnToTitle;
             }
             break;
 
         case ScreenState::GameOver:
-            if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_ENTER)) {
+            if (input.restart_pressed || input.confirm_pressed) {
                 state = ScreenState::Playing;
                 return ScreenAction::RestartGame;
             }
-            if (IsKeyPressed(KEY_M)) {
+            if (input.menu_pressed) {
                 state = ScreenState::Start;
                 return ScreenAction::ReturnToTitle;
             }
@@ -53,6 +53,16 @@ ScreenAction ScreenManager::update(f32 dt, bool player_alive) noexcept {
     }
 
     return ScreenAction::None;
+}
+
+std::string_view ScreenManager::get_state_name() const noexcept {
+    switch (state) {
+        case ScreenState::Start:    return "Start";
+        case ScreenState::Playing:  return "Playing";
+        case ScreenState::Paused:   return "Paused";
+        case ScreenState::GameOver: return "GameOver";
+    }
+    return "Unknown";
 }
 
 void ScreenManager::draw_hud(const Spaceship& spaceship) const noexcept {

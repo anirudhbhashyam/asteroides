@@ -15,8 +15,11 @@ void Game::reset() noexcept {
     enemies.reset();
 }
 
-void Game::update(f32 dt) noexcept {
-    const ScreenAction action{ screens.update(dt, spaceship.is_alive()) };
+void Game::update(const Engine& engine) noexcept {
+    const f32 dt{ engine.get_time().dt };
+    const InputState& input{ engine.get_input() };
+
+    const ScreenAction action{ screens.update(engine.get_time().raw_dt, input, spaceship.is_alive()) };
     if (action == ScreenAction::StartGame ||
         action == ScreenAction::RestartGame ||
         action == ScreenAction::ReturnToTitle) {
@@ -28,7 +31,7 @@ void Game::update(f32 dt) noexcept {
     const Vector2 view_center{ world.get_camera_target() };
 
     if (has_layer(policy.update_mask, Layer::Combat)) {
-        spaceship.update(dt);
+        spaceship.update(dt, input);
     }
 
     if (has_layer(policy.update_mask, Layer::Background)) {
@@ -123,8 +126,8 @@ void Game::_handle_combat(Vector2 view_center) noexcept {
 
     // 2. Asteroids vs. player ship
     if (spaceship.is_alive()) {
-        for (Asteroid& asteroid : asteroid_list) {
-            if (asteroid.collides_with(player_pos, player_radius)) {
+        for (auto ast_it{ asteroid_list.begin() }; ast_it != asteroid_list.end();) {
+            if (ast_it->collides_with(player_pos, player_radius)) {
                 const bool was_invulnerable{ spaceship.is_invulnerable() };
                 spaceship.take_damage(20, true);
                 if (!was_invulnerable) {
@@ -133,14 +136,99 @@ void Game::_handle_combat(Vector2 view_center) noexcept {
                 if (!spaceship.is_alive()) {
                     particles.emit(player_pos, Spaceship::EXPLOSION_EFFECT, spaceship.get_vel());
                 }
-                asteroids.spawn_explosion(asteroid.get_pos(), asteroid.get_scale());
-                asteroid = Asteroid::spawn_from_edge(view_center, w, h);
+                asteroids.spawn_explosion(ast_it->get_pos(), ast_it->get_scale());
+                if (asteroid_list.size() <= 1) {
+                    ast_it = asteroid_list.erase(ast_it);
+                } else {
+                    *ast_it = Asteroid::spawn_from_edge(view_center, w, h);
+                    ++ast_it;
+                }
+            } else {
+                ++ast_it;
             }
         }
     }
 }
 
-void Game::draw() const noexcept {
+void Game::_draw_debug_world(const Engine& engine) const noexcept {
+    if (!engine.is_debug_enabled()) return;
+
+    constexpr f32 bolt_radius{ 4.0f };
+
+    for (const Asteroid& ast : asteroids.get_asteroids()) {
+        engine.draw_debug_circle(ast.get_pos(), ast.get_radius(), hex_to_color(0xfbbf24cc));
+        engine.draw_debug_kinematics(ast.get_pos(), ast.get_vel(), ast.get_rotation(), ast.get_radius());
+    }
+
+    for (const Asteroid& frag : asteroids.get_fragments()) {
+        engine.draw_debug_circle(frag.get_pos(), frag.get_radius(), hex_to_color(0xf59e0b88));
+    }
+
+    for (const Powerup& p : powerups.get_powerups()) {
+        engine.draw_debug_circle(p.pos, p.radius, hex_to_color(0x22c55edd));
+    }
+
+    for (const EnemySpaceship& enemy : enemies.get_enemies()) {
+        if (!enemy.is_alive()) continue;
+        engine.draw_debug_circle(enemy.get_pos(), enemy.get_radius(), hex_to_color(0xef4444dd));
+        engine.draw_debug_circle(enemy.get_pos(), enemy.get_preferred_range(), hex_to_color(0xa855f733));
+        engine.draw_debug_kinematics(enemy.get_pos(), enemy.get_vel(), enemy.get_rotation(), enemy.get_radius());
+        if (spaceship.is_alive()) {
+            engine.draw_debug_line(enemy.get_pos(), spaceship.get_pos(), hex_to_color(0xa855f766));
+        }
+        for (const Blaster::Bolt& bolt : enemy.get_blaster().get_bolts()) {
+            engine.draw_debug_circle(bolt.pos, bolt_radius, hex_to_color(0xf97316dd));
+        }
+    }
+
+    if (spaceship.is_alive()) {
+        const Color ship_hitbox_color{
+            spaceship.is_invulnerable() ? hex_to_color(0x5eead4ff) : hex_to_color(0x38bdf8dd)
+        };
+        engine.draw_debug_circle(spaceship.get_pos(), spaceship.get_radius(), ship_hitbox_color);
+        engine.draw_debug_kinematics(
+            spaceship.get_pos(),
+            spaceship.get_vel(),
+            spaceship.get_rotation(),
+            spaceship.get_radius()
+        );
+    }
+
+    for (const Blaster::Bolt& bolt : spaceship.get_blaster().get_bolts()) {
+        engine.draw_debug_circle(bolt.pos, bolt_radius, hex_to_color(0x38bdf8dd));
+    }
+}
+
+TelemetryData Game::_build_telemetry() const noexcept {
+    const LayerPolicy policy{ screens.get_policy() };
+    u64 enemy_bolts{ 0 };
+    for (const EnemySpaceship& enemy : enemies.get_enemies()) {
+        enemy_bolts += static_cast<u64>(enemy.get_blaster().get_bolts().size());
+    }
+
+    return TelemetryData{
+        .screen_name = screens.get_state_name(),
+        .update_mask = static_cast<u8>(policy.update_mask),
+        .draw_mask = static_cast<u8>(policy.draw_mask),
+        .player_pos = spaceship.get_pos(),
+        .player_vel = spaceship.get_vel(),
+        .player_rotation = spaceship.get_rotation(),
+        .player_health = spaceship.get_health(),
+        .player_max_health = spaceship.get_max_health(),
+        .player_invuln_timer = spaceship.get_invulnerability_timer(),
+        .double_blaster_timer = spaceship.get_powerup_remaining(PowerupType::DoubleBlaster),
+        .shield_timer = spaceship.get_powerup_remaining(PowerupType::Shield),
+        .asteroid_count = static_cast<u64>(asteroids.get_asteroids().size()),
+        .fragment_count = static_cast<u64>(asteroids.get_fragments().size()),
+        .enemy_count = static_cast<u64>(enemies.get_enemies().size()),
+        .player_bolt_count = static_cast<u64>(spaceship.get_blaster().get_bolts().size()),
+        .enemy_bolt_count = enemy_bolts,
+        .powerup_count = static_cast<u64>(powerups.get_powerups().size()),
+        .particle_count = particles.count()
+    };
+}
+
+void Game::draw(const Engine& engine) const noexcept {
     const LayerPolicy policy{ screens.get_policy() };
 
     if (has_layer(policy.draw_mask, Layer::Background)) {
@@ -159,6 +247,7 @@ void Game::draw() const noexcept {
         if (has_layer(policy.draw_mask, Layer::Asteroids)) {
             particles.draw();
         }
+        _draw_debug_world(engine);
     world.end_camera();
 
     if (has_layer(policy.draw_mask, Layer::Hud)) {
@@ -167,6 +256,10 @@ void Game::draw() const noexcept {
 
     if (has_layer(policy.draw_mask, Layer::Overlay)) {
         screens.draw_overlay();
+    }
+
+    if (engine.is_debug_enabled()) {
+        engine.draw_telemetry(_build_telemetry());
     }
 }
 

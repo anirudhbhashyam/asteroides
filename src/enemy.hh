@@ -66,6 +66,7 @@ struct EnemySpaceship {
         EnemySpaceship();
 
         static EnemySpaceship spawn_from_edge(Vector2 view_center, i32 screen_w, i32 screen_h);
+        static EnemySpaceship spawn_at(Vector2 origin, f32 initial_rotation = 0.0f);
 
         void update(f32 dt, Vector2 player_pos, bool player_alive, Vector2 view_center) noexcept;
         void draw() const noexcept;
@@ -77,9 +78,14 @@ struct EnemySpaceship {
         [[nodiscard]] bool collides_with(Vector2 point, f32 point_radius) const noexcept;
         [[nodiscard]] Vector2 get_pos() const noexcept { return pos; }
         [[nodiscard]] Vector2 get_vel() const noexcept { return vel; }
+        [[nodiscard]] f32 get_rotation() const noexcept { return rotation; }
         [[nodiscard]] f32 get_scale() const noexcept { return scale; }
         [[nodiscard]] f32 get_radius() const noexcept { return radius * scale; }
+        [[nodiscard]] f32 get_preferred_range() const noexcept { return preferred_range; }
+        [[nodiscard]] i32 get_health() const noexcept { return health; }
+        [[nodiscard]] i32 get_max_health() const noexcept { return max_health; }
         [[nodiscard]] Blaster& get_blaster() noexcept { return blaster; }
+        [[nodiscard]] const Blaster& get_blaster() const noexcept { return blaster; }
 
     private:
         assets::Sprite sprite{ ASSET_NAME };
@@ -108,12 +114,16 @@ struct EnemyField {
         void update(f32 dt, Vector2 player_pos, bool player_alive, Vector2 view_center) noexcept;
         void draw() const noexcept;
         void reset() noexcept;
+        void set_auto_spawn(bool enabled) noexcept { auto_spawn = enabled; }
+        EnemySpaceship& spawn_at(Vector2 origin, f32 initial_rotation = 0.0f);
         [[nodiscard]] std::vector<EnemySpaceship>& get_enemies() noexcept { return enemies; }
+        [[nodiscard]] const std::vector<EnemySpaceship>& get_enemies() const noexcept { return enemies; }
 
     private:
         std::vector<EnemySpaceship> enemies{ };
         f32 spawn_timer{ 3.0f };
         f32 spawn_interval{ 5.0f };
+        bool auto_spawn{ true };
 };
 
 } // namespace asteroides

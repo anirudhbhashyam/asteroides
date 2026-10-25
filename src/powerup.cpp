@@ -42,6 +42,24 @@ void PowerupField::try_spawn(Vector2 origin) noexcept {
     }
 }
 
+void PowerupField::spawn_specific(PowerupType type, Vector2 origin, Vector2 vel) noexcept {
+    const u64 idx{ static_cast<u64>(type) };
+    if (idx >= POWERUP_COUNT) return;
+
+    powerups.push_back(Powerup{
+        .type = configs[idx].type,
+        .sprite = assets::Sprite{ configs[idx].asset_name },
+        .pos = origin,
+        .vel = vel,
+        .scale = 1.5f,
+        .radius = 18.0f,
+        .ttl = configs[idx].world_ttl,
+        .max_ttl = configs[idx].world_ttl,
+        .effect_duration = configs[idx].effect_duration,
+        .pulse_phase = 0.0f
+    });
+}
+
 void PowerupField::update(f32 dt, Spaceship& spaceship) noexcept {
     constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
     const Vector2 ship_pos{ spaceship.get_pos() };

@@ -7,7 +7,13 @@ shopt -s nullglob
 RELEASE_NAME=raylib-6.0_macos
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SRC_DIR=${SCRIPT_DIR}/src
+TEST_DIR=${SCRIPT_DIR}/tests
 OBJ_DIR=obj
+BUILD_TESTS=false
+
+if [[ "$1" == "--tests" ]]; then
+    BUILD_TESTS=true
+fi
 
 log() {
     printf '  \033[32m>\033[0m %s\n' "$1"
@@ -22,6 +28,9 @@ if [ ! -d "${RELEASE_NAME}" ]; then
 fi
 
 INCLUDE="-I./${RELEASE_NAME}/include -I./src"
+if [[ "${BUILD_TESTS}" == true ]]; then
+    INCLUDE="${INCLUDE} -I./tests"
+fi
 CXXFLAGS="-Wall -Wextra -Werror -Wno-missing-field-initializers -std=c++26 ${INCLUDE}"
 
 FRAMEWORKS="-framework IOKit -framework Cocoa -framework OpenGL"
@@ -47,8 +56,20 @@ for file in ${SRC_DIR}/*.cpp; do
     if [[ ! -f "${file}" ]]; then
         continue
     fi
+    if [[ "${BUILD_TESTS}" == true && "$(basename "${file}")" == "main.cpp" ]]; then
+        continue
+    fi
     compile "${file}"
 done
+
+if [[ "${BUILD_TESTS}" == true ]]; then
+    for file in ${TEST_DIR}/*.cpp; do
+        if [[ ! -f "${file}" ]]; then
+            continue
+        fi
+        compile "${file}"
+    done
+fi
 
 log "Linking..."
 if clang++ "${OBJECTS[@]}" -o a.out ${LDFLAGS}; then

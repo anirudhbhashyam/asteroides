@@ -36,6 +36,13 @@ EnemySpaceship EnemySpaceship::spawn_from_edge(Vector2 view_center, i32 screen_w
     return enemy;
 }
 
+EnemySpaceship EnemySpaceship::spawn_at(Vector2 origin, f32 initial_rotation) {
+    EnemySpaceship enemy{ };
+    enemy.pos = origin;
+    enemy.rotation = initial_rotation;
+    return enemy;
+}
+
 void EnemySpaceship::take_damage(i32 amount) noexcept {
     if (!is_alive()) return;
     health = (health > amount) ? (health - amount) : 0;
@@ -125,7 +132,7 @@ void EnemyField::update(f32 dt, Vector2 player_pos, bool player_alive, Vector2 v
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
 
-    if (player_alive && static_cast<u64>(enemies.size()) < MAX_ENEMIES) {
+    if (auto_spawn && player_alive && static_cast<u64>(enemies.size()) < MAX_ENEMIES) {
         spawn_timer -= dt;
         if (spawn_timer <= 0.0f) {
             enemies.push_back(EnemySpaceship::spawn_from_edge(view_center, w, h));
@@ -151,6 +158,11 @@ void EnemyField::draw() const noexcept {
 void EnemyField::reset() noexcept {
     enemies.clear();
     spawn_timer = 3.0f;
+}
+
+EnemySpaceship& EnemyField::spawn_at(Vector2 origin, f32 initial_rotation) {
+    enemies.push_back(EnemySpaceship::spawn_at(origin, initial_rotation));
+    return enemies.back();
 }
 
 } // namespace asteroides

@@ -32,6 +32,7 @@ struct Blaster {
         void draw() const noexcept;
         void clear() noexcept;
         [[nodiscard]] std::vector<Bolt>& get_bolts() noexcept { return bolts; }
+        [[nodiscard]] const std::vector<Bolt>& get_bolts() const noexcept { return bolts; }
 
     private:
         assets::Sprite sprite;
