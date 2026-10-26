@@ -4,6 +4,7 @@
 #include <cmath>
 #include <numbers>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "engine.hh"
@@ -33,6 +34,11 @@ struct Powerup {
     f32 max_ttl{ 8.0f };
     f32 effect_duration{ 10.0f };
     f32 pulse_phase{ 0.0f };
+};
+
+struct CollectedPowerup {
+    PowerupType type{ PowerupType::DoubleBlaster };
+    Vector2 pos{ Vector2Zero() };
 };
 
 struct PowerupField {
@@ -69,15 +75,23 @@ struct PowerupField {
         [[nodiscard]] f32 get_drop_chance(PowerupType type) const noexcept;
 
         void try_spawn(Vector2 origin) noexcept;
+        void spawn_guaranteed(Vector2 origin) noexcept;
         void spawn_specific(PowerupType type, Vector2 origin, Vector2 vel = Vector2Zero()) noexcept;
         void update(f32 dt, Spaceship& spaceship) noexcept;
         void draw() const noexcept;
-        void clear() noexcept { powerups.clear(); }
+        void clear() noexcept {
+            powerups.clear();
+            collected_events.clear();
+        }
+        [[nodiscard]] std::vector<CollectedPowerup> consume_collected() noexcept {
+            return std::exchange(collected_events, { });
+        }
         [[nodiscard]] const std::vector<Powerup>& get_powerups() const noexcept { return powerups; }
 
     private:
         std::array<PowerupConfig, POWERUP_COUNT> configs{ DEFAULT_CONFIGS };
         std::vector<Powerup> powerups{ };
+        std::vector<CollectedPowerup> collected_events{ };
 };
 
 } // namespace asteroides

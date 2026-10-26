@@ -32,13 +32,16 @@ struct World {
         void begin_camera() const noexcept;
         void end_camera() const noexcept;
         void reset_camera(Vector2 target_pos) noexcept;
+        void add_trauma(f32 amount) noexcept;
 
         [[nodiscard]] Vector2 get_camera_target() const noexcept { return camera.target; }
+        [[nodiscard]] f32 get_trauma() const noexcept { return trauma; }
 
     private:
         std::vector<Star> stars{ };
         Camera2D camera{ };
         f32 camera_smooth_speed{ 6.0f };
+        f32 trauma{ 0.0f };
         Vector2 ambient_drift{ -14.0f, 20.0f };
 };
 

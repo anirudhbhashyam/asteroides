@@ -15,6 +15,9 @@ InputState InputState::poll_hardware() noexcept {
 
     state.fire_down = IsKeyDown(KEY_SPACE);
     state.fire_pressed = IsKeyPressed(KEY_SPACE);
+    state.dash_pressed = IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT);
+    state.strafe_lock_down = IsKeyDown(KEY_K) || IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT) ||
+                             IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
     state.confirm_pressed = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE);
     state.pause_pressed = IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE);
     state.restart_pressed = IsKeyPressed(KEY_R);

@@ -7,7 +7,15 @@ void Spaceship::draw() const noexcept {
     if (!is_alive()) return;
 
     if (sprite.is_valid()) {
-        const Color tint{ hit_flash_timer > 0.0f ? hex_to_color(0xff5555ff) : WHITE };
+        if (is_dashing()) {
+            const Vector2 ghost_pos{ Vector2Subtract(pos, Vector2Scale(vel, 0.025f)) };
+            sprite.draw(ghost_pos, FRAME_UP, rotation, scale, Fade(hex_to_color(0x38bdf8ff), 0.45f));
+        }
+        const Color tint{
+            hit_flash_timer > 0.0f ? hex_to_color(0xff5555ff) :
+            is_dashing()           ? hex_to_color(0x7dd3fcff) :
+                                     WHITE
+        };
         sprite.draw(pos, FRAME_UP, rotation, scale, tint);
     } else {
         DrawCircleV(pos, radius, color);
@@ -88,6 +96,10 @@ void Spaceship::apply_impulse(Vector2 impulse) noexcept {
     vel = Vector2Add(vel, impulse);
 }
 
+void Spaceship::refund_dash_cooldown(f32 fraction) noexcept {
+    dash_cooldown_timer = std::fmaxf(0.0f, dash_cooldown_timer - DASH_COOLDOWN * fraction);
+}
+
 void Spaceship::reset() noexcept {
     pos = Vector2{
         static_cast<f32>(GetScreenWidth() / 2),
@@ -98,8 +110,13 @@ void Spaceship::reset() noexcept {
     health = max_health;
     invulnerability_timer = 0.0f;
     hit_flash_timer = 0.0f;
+    dash_timer = 0.0f;
+    dash_cooldown_timer = 0.0f;
     powerup_timers.fill(0.0f);
     halo_pulse_timer = 0.0f;
+    thrusting = false;
+    strafe_locked = false;
+    just_dashed = false;
     blaster.clear();
 }
 
@@ -109,6 +126,12 @@ void Spaceship::update(const f32 dt, const InputState& input) noexcept {
     }
     if (hit_flash_timer > 0.0f) {
         hit_flash_timer = std::fmaxf(0.0f, hit_flash_timer - dt);
+    }
+    if (dash_timer > 0.0f) {
+        dash_timer = std::fmaxf(0.0f, dash_timer - dt);
+    }
+    if (dash_cooldown_timer > 0.0f) {
+        dash_cooldown_timer = std::fmaxf(0.0f, dash_cooldown_timer - dt);
     }
 
     // Common powerup timer update across all active powerup effects
@@ -124,6 +147,7 @@ void Spaceship::update(const f32 dt, const InputState& input) noexcept {
     }
 
     if (!is_alive()) {
+        thrusting = false;
         blaster.update(dt, pos);
         return;
     }
@@ -134,11 +158,32 @@ void Spaceship::update(const f32 dt, const InputState& input) noexcept {
     };
     f32 k_drag{ 0.01f };
     bool has_input{ directional_acc.x != 0.0f || directional_acc.y != 0.0f };
+    thrusting = has_input || is_dashing();
+    strafe_locked = input.strafe_lock_down;
+
     if (has_input) {
         directional_acc = Vector2Multiply(Vector2Normalize(directional_acc), acc);
-        const f32 target_rotation{ std::atan2f(directional_acc.x, -directional_acc.y) * RAD2DEG };
-        const f32 angle_diff{ std::remainderf(target_rotation - rotation, 360.0f) };
-        rotation = std::remainderf(rotation + angle_diff * std::fminf(1.0f, turn_speed * dt), 360.0f);
+        if (!strafe_locked) {
+            const f32 target_rotation{ std::atan2f(directional_acc.x, -directional_acc.y) * RAD2DEG };
+            const f32 angle_diff{ std::remainderf(target_rotation - rotation, 360.0f) };
+            rotation = std::remainderf(rotation + angle_diff * std::fminf(1.0f, turn_speed * dt), 360.0f);
+        }
+    }
+
+    if (input.dash_pressed && dash_cooldown_timer <= 0.0f) {
+        dash_timer = DASH_DURATION;
+        dash_cooldown_timer = DASH_COOLDOWN;
+        invulnerability_timer = std::fmaxf(invulnerability_timer, DASH_INVULN_DURATION);
+        just_dashed = true;
+
+        Vector2 dash_dir{ Vector2Zero() };
+        if (has_input) {
+            dash_dir = Vector2Normalize(input.move_axis);
+        } else {
+            const f32 rad{ rotation * DEG2RAD };
+            dash_dir = Vector2{ std::sinf(rad), -std::cosf(rad) };
+        }
+        vel = Vector2Add(vel, Vector2Scale(dash_dir, DASH_IMPULSE));
     }
     Vector2 drag_acc{ Vector2Zero() };
     f32 speed{ Vector2Length(vel) };

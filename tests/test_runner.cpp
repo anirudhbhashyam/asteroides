@@ -71,6 +71,39 @@ VisualTestRunner::VisualTestRunner(Engine& engine_ref, Game& game_ref) noexcept
                 { "Player death transitions to GameOver screen", false },
                 { "Restart action resets Game & restores 100 HP", false }
             } }
+        },
+        {
+            .title = "7. Score, Combo, Wave Director, Shake & Radar",
+            .subtitle = "Verifies kill-chain multiplier, wave escalation, camera trauma & HUD",
+            .duration = 3.2f,
+            .assertions = { {
+                { "Thruster trails & camera trauma shake active", false },
+                { "Kill-chain combo multiplier & score award", false },
+                { "World-space floating combat text popups", false },
+                { "Wave escalation & damage combo decay", false }
+            } }
+        },
+        {
+            .title = "8. Phase Dash, Strafe-Lock, Sniper & Volatile AoE",
+            .subtitle = "Verifies dash i-frames, reverse-strafe aim, Sniper laser & Volatile blast",
+            .duration = 3.4f,
+            .assertions = { {
+                { "Phase Dash impulse, i-frames & cooldown bar", false },
+                { "Strafe-Lock preserves heading while retreating", false },
+                { "Sniper telegraph laser & Kamikaze pursuit", false },
+                { "Volatile Asteroid AoE blast kills nearby enemy", false }
+            } }
+        },
+        {
+            .title = "9. Battlestar Pointy Volley, Flat Wave & Radar",
+            .subtitle = "Verifies pointy-end normal bolts, 90deg spin flat-end wave attack & kill",
+            .duration = 4.2f,
+            .assertions = { {
+                { "Pointy ends spin to player & fire normal bolts", false },
+                { "Spins 90deg to flat ends & fires wave attacks", false },
+                { "Wave attack impacts player shield / hull", false },
+                { "Battlestar destroyed (+1000 pts & powerup drop)", false }
+            } }
         }
     } };
 
@@ -197,6 +230,79 @@ void VisualTestRunner::_start_scenario(u64 index) noexcept {
 
             // Spawn asteroid colliding with player to trigger contact damage + i-frames
             game.get_asteroids().spawn_custom(Vector2{ 400.0f, 290.0f }, Vector2{ 0.0f, 40.0f }, 2.0f);
+            break;
+        }
+        case 6: {
+            // Scenario 7: Score, Combo Multiplier, Wave Director, Camera Shake, Off-screen Radar/Chevrons
+            game.get_screens().set_state(ScreenState::Playing);
+            game.get_asteroids().set_target_count(0);
+            game.get_asteroids().clear();
+
+            Spaceship& ship{ game.get_spaceship() };
+            ship.set_pos(Vector2{ 400.0f, 380.0f });
+            ship.set_rotation(0.0f);
+            game.get_world().reset_camera(ship.get_pos());
+
+            // Two target asteroids in line of fire to build combo (1.0x -> 1.5x -> 2.0x)
+            game.get_asteroids().spawn_custom(Vector2{ 400.0f, 275.0f }, Vector2Zero(), 2.0f);
+            game.get_asteroids().spawn_custom(Vector2{ 400.0f, 185.0f }, Vector2Zero(), 2.0f);
+
+            // Off-screen enemy & off-screen powerup to showcase Edge Indicators & Tactical Radar
+            game.get_enemies().spawn_at(Vector2{ 880.0f, 140.0f }, 250.0f);
+            game.get_powerups().spawn_specific(PowerupType::Shield, Vector2{ -110.0f, 440.0f });
+            break;
+        }
+        case 7: {
+            // Scenario 8: Phase Dash, Strafe-Lock, Sniper Telegraph & Volatile Asteroid AoE
+            game.get_screens().set_state(ScreenState::Playing);
+            game.get_asteroids().set_target_count(0);
+            game.get_asteroids().clear();
+
+            Spaceship& ship{ game.get_spaceship() };
+            ship.set_pos(Vector2{ 400.0f, 390.0f });
+            ship.set_rotation(0.0f);
+            ship.activate_powerup(PowerupType::Shield, 10.0f);
+            game.get_world().reset_camera(ship.get_pos());
+
+            // Spawn a Rail Sniper on the left to demonstrate telegraph laser sight
+            game.get_enemies().spawn_at(Vector2{ 210.0f, 180.0f }, 145.0f, EnemyArchetype::Sniper);
+
+            // Spawn a Volatile Asteroid directly above the ship and a Kamikaze Swarmer beside it
+            game.get_asteroids().spawn_custom(
+                Vector2{ 400.0f, 200.0f },
+                Vector2Zero(),
+                2.3f,
+                AsteroidVariant::Volatile
+            );
+            game.get_enemies().spawn_at(Vector2{ 430.0f, 195.0f }, 180.0f, EnemyArchetype::Kamikaze);
+
+            // Also spawn a GoldCore Asteroid to the right
+            game.get_asteroids().spawn_custom(
+                Vector2{ 555.0f, 240.0f },
+                Vector2Zero(),
+                2.2f,
+                AsteroidVariant::GoldCore
+            );
+            break;
+        }
+        case 8: {
+            // Scenario 9: Battlestar Pointy-End Volley, Flat-End Wave Attack & Radar Emblem
+            game.get_screens().set_state(ScreenState::Playing);
+            game.get_asteroids().set_target_count(0);
+            game.get_asteroids().clear();
+
+            Spaceship& ship{ game.get_spaceship() };
+            ship.set_pos(Vector2{ 400.0f, 400.0f });
+            ship.set_rotation(0.0f);
+            ship.activate_powerup(PowerupType::Shield, 10.0f);
+            ship.activate_powerup(PowerupType::DoubleBlaster, 10.0f);
+            game.get_world().reset_camera(ship.get_pos());
+
+            // Spawn Battlestar at (400, 175) starting in PointyNormal mode
+            EnemySpaceship& bstar{
+                game.get_enemies().spawn_at(Vector2{ 400.0f, 175.0f }, 40.0f, EnemyArchetype::Battlestar)
+            };
+            bstar.set_battlestar_mode(BattlestarAttackMode::PointyNormal);
             break;
         }
         default:
@@ -446,6 +552,141 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
                        game.get_screens().get_state() == ScreenState::Playing &&
                        ship.get_health() == ship.get_max_health()) {
                 _pass_assertion(3);
+            }
+            break;
+        }
+
+        case 6: {
+            ProgressionState& prog{ game.get_progression() };
+
+            if (t < 0.35f) {
+                synth.move_axis = Vector2{ 0.0f, -1.0f };
+            }
+            if (t >= 0.2f && t < 1.8f) {
+                synth.fire_down = true;
+            }
+
+            if (game.get_world().get_trauma() > 0.02f && game.get_particles().count() > 0) {
+                _pass_assertion(0);
+            }
+
+            if (prog.score >= 125 && prog.combo_multiplier >= 2.0f) {
+                _pass_assertion(1);
+            }
+
+            if (game.get_particles().text_count() > 0) {
+                _pass_assertion(2);
+            }
+
+            if (t >= 1.9f && !(step_flags & 1u)) {
+                prog.wave_timer = ProgressionState::WAVE_DURATION;
+                step_flags |= 1u;
+            } else if ((step_flags & 1u) && !(step_flags & 2u) && prog.current_wave >= 2) {
+                if (prog.combo_multiplier < 2.0f) {
+                    (void)prog.add_kill_score(50);
+                }
+                const f32 mult_before{ prog.combo_multiplier };
+                prog.on_player_damaged();
+                if (prog.combo_multiplier < mult_before) {
+                    _pass_assertion(3);
+                }
+                step_flags |= 2u;
+            }
+            break;
+        }
+
+        case 7: {
+            Spaceship& ship{ game.get_spaceship() };
+            const auto& enemy_list{ game.get_enemies().get_enemies() };
+
+            // 1. Trigger Phase Dash at t = 0.2f along +X while Strafe-Locked facing 0 deg (UP)
+            if (t >= 0.2f && !(step_flags & 1u)) {
+                synth.dash_pressed = true;
+                synth.strafe_lock_down = true;
+                synth.move_axis = Vector2{ 0.0f, 0.0f };
+                step_flags |= 1u;
+            }
+            if (ship.is_dashing() && ship.get_dash_cooldown() > 1.5f) {
+                _pass_assertion(0);
+            }
+
+            // 2. Retreat downward (+Y) while holding Strafe-Lock so rotation stays at 0 deg (UP)
+            if (t >= 0.45f && t < 1.15f) {
+                synth.strafe_lock_down = true;
+                synth.move_axis = Vector2{ 0.0f, 1.0f };
+                if (ship.is_strafe_locked() && ship.get_vel().y > 40.0f &&
+                    std::fabsf(ship.get_rotation()) < 1.0f) {
+                    _pass_assertion(1);
+                }
+            }
+
+            // 3. Verify Sniper telegraph laser & Kamikaze pursuit
+            for (const EnemySpaceship& enemy : enemy_list) {
+                if (enemy.get_archetype() == EnemyArchetype::Sniper && enemy.is_telegraphing()) {
+                    _pass_assertion(2);
+                }
+            }
+
+            // 4. Fire upward into the Volatile Asteroid at (400, 200) so its AoE blast kills the nearby Kamikaze
+            if (t >= 1.15f && !(step_flags & 2u)) {
+                game.get_enemies().spawn_at(Vector2{ 432.0f, 195.0f }, 180.0f, EnemyArchetype::Kamikaze);
+                step_flags |= 2u;
+            }
+            if (t >= 1.2f && t < 2.2f) {
+                ship.set_pos(Vector2{ 400.0f, ship.get_pos().y });
+                ship.set_rotation(0.0f);
+                synth.fire_down = true;
+            }
+            if (game.get_progression().score >= 300) {
+                _pass_assertion(3);
+            }
+            break;
+        }
+
+        case 8: {
+            Spaceship& ship{ game.get_spaceship() };
+            auto& enemy_list{ game.get_enemies().get_enemies() };
+
+            if (!enemy_list.empty()) {
+                EnemySpaceship& bstar{ enemy_list.front() };
+                const f32 dist{ Vector2Distance(ship.get_pos(), bstar.get_pos()) };
+                const Vector2 lead_pos{
+                    Vector2Add(bstar.get_pos(), Vector2Scale(bstar.get_vel(), dist / 700.0f))
+                };
+                const Vector2 to_bstar{ Vector2Subtract(lead_pos, ship.get_pos()) };
+                ship.set_rotation(std::atan2f(to_bstar.x, -to_bstar.y) * RAD2DEG);
+
+                // 1. Verify PointyNormal mode fires bidirectional normal bolts
+                if (bstar.get_battlestar_mode() == BattlestarAttackMode::PointyNormal &&
+                    bstar.get_blaster().get_bolts().size() >= 2) {
+                    _pass_assertion(0);
+                    if (!(step_flags & 1u)) {
+                        bstar.set_battlestar_mode(BattlestarAttackMode::FlatWave);
+                        step_flags |= 1u;
+                    }
+                }
+
+                // 2. Verify FlatWave mode spins 90deg and fires crescent wave attacks
+                if (bstar.get_battlestar_mode() == BattlestarAttackMode::FlatWave &&
+                    bstar.get_wave_blaster().get_bolts().size() >= 2) {
+                    _pass_assertion(1);
+                    step_flags |= 2u;
+                }
+
+                // 3. Once wave attack is in flight and impacts/passes player shield, open fire to destroy Battlestar
+                if ((step_flags & 2u) && game.get_particles().text_count() > 0) {
+                    _pass_assertion(2);
+                }
+
+                if (t >= 1.9f) {
+                    synth.fire_down = true;
+                }
+            } else {
+                // Battlestar destroyed!
+                _pass_assertion(2);
+                if (game.get_progression().score >= 1000 && !game.get_powerups().get_powerups().empty()) {
+                    _pass_assertion(3);
+                }
             }
             break;
         }

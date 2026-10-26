@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdio>
+
 #include "asteroid.hh"
 #include "enemy.hh"
 #include "engine.hh"
@@ -17,12 +19,14 @@ struct Game {
     public:
         explicit Game(u64 star_count = 120, u64 asteroid_count = 12);
 
-        void update(const Engine& engine) noexcept;
+        void update(Engine& engine) noexcept;
         void draw(const Engine& engine) const noexcept;
         void reset() noexcept;
 
         [[nodiscard]] ScreenManager& get_screens() noexcept { return screens; }
         [[nodiscard]] const ScreenManager& get_screens() const noexcept { return screens; }
+        [[nodiscard]] ProgressionState& get_progression() noexcept { return progression; }
+        [[nodiscard]] const ProgressionState& get_progression() const noexcept { return progression; }
         [[nodiscard]] Spaceship& get_spaceship() noexcept { return spaceship; }
         [[nodiscard]] const Spaceship& get_spaceship() const noexcept { return spaceship; }
         [[nodiscard]] World& get_world() noexcept { return world; }
@@ -37,17 +41,21 @@ struct Game {
         [[nodiscard]] const EnemyField& get_enemies() const noexcept { return enemies; }
 
     private:
-        void _handle_combat(Vector2 view_center) noexcept;
+        void _handle_combat(Engine& engine, Vector2 view_center) noexcept;
+        void _emit_thruster_trails() noexcept;
+        void _process_events() noexcept;
         void _draw_debug_world(const Engine& engine) const noexcept;
         [[nodiscard]] TelemetryData _build_telemetry() const noexcept;
 
         ScreenManager screens{ };
+        ProgressionState progression{ };
         Spaceship spaceship{ };
         World world;
         ParticleSystem particles{ };
         PowerupField powerups{ };
         AsteroidField asteroids;
         EnemyField enemies{ };
+        u64 base_asteroid_count{ 12 };
 };
 
 } // namespace asteroides

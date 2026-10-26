@@ -3,10 +3,12 @@
 #include <array>
 #include <cmath>
 #include <numbers>
+#include <utility>
 #include <vector>
 
 #include "blaster.hh"
 #include "engine.hh"
+#include "particle.hh"
 #include "powerup.hh"
 #include "raylib.h"
 #include "raymath.h"
@@ -14,25 +16,72 @@
 
 namespace asteroides {
 
+enum class AsteroidVariant : u8 {
+    Standard = 0,
+    Volatile,
+    GoldCore
+};
+
 struct Asteroid {
     public:
         static constexpr i32 SPRITE_SIZE{ 32 };
         static constexpr u64 PIXEL_COUNT{ static_cast<u64>(SPRITE_SIZE * SPRITE_SIZE) };
         static constexpr u64 VERTEX_COUNT{ 12 };
+        static constexpr f32 VOLATILE_AOE_RADIUS{ 140.0f };
 
         static constexpr Color COLOR_EMPTY{ hex_to_color(0x00000000) };
         static constexpr Color COLOR_BODY{ hex_to_color(0x000000ff) };
         static constexpr Color COLOR_RIM{ hex_to_color(0x4e4d50ff) };
+        static constexpr Color COLOR_RIM_VOLATILE{ hex_to_color(0xef4444ff) };
+        static constexpr Color COLOR_RIM_GOLD{ hex_to_color(0xfacc15ff) };
+
+        static constexpr ParticleEffect SHATTER_DUST_EFFECT{
+            .count_min = 16,
+            .count_max = 26,
+            .speed_min = 35.0f,
+            .speed_max = 175.0f,
+            .size_min = 2.0f,
+            .size_max = 5.0f,
+            .ttl_min = 0.25f,
+            .ttl_max = 0.65f,
+            .drag = 2.8f,
+            .direction_deg = 0.0f,
+            .spread_deg = 360.0f,
+            .shrink = true,
+            .start_palette = { {
+                hex_to_color(0x94a3b8ff),
+                hex_to_color(0x64748bff),
+                hex_to_color(0xfef08aff),
+                hex_to_color(0x4e4d50ff)
+            } },
+            .end_color = hex_to_color(0x1e293bff)
+        };
 
         Asteroid() noexcept = default;
 
-        static std::array<Color, PIXEL_COUNT> generate_pixels() noexcept;
+        static std::array<Color, PIXEL_COUNT> generate_pixels(
+            AsteroidVariant variant = AsteroidVariant::Standard
+        ) noexcept;
         static Asteroid spawn_from_edge(Vector2 view_center, i32 screen_w, i32 screen_h) noexcept;
-        static Asteroid spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale = 2.2f) noexcept;
-        static Asteroid spawn_fragment(Vector2 origin, f32 parent_scale, f32 angle_rad) noexcept;
+        static Asteroid spawn_custom(
+            Vector2 origin,
+            Vector2 velocity,
+            f32 custom_scale = 2.2f,
+            AsteroidVariant variant = AsteroidVariant::Standard
+        ) noexcept;
+        static Asteroid spawn_fragment(
+            Vector2 origin,
+            f32 parent_scale,
+            f32 angle_rad,
+            AsteroidVariant variant = AsteroidVariant::Standard
+        ) noexcept;
 
         void update(f32 dt) noexcept;
         void draw() const noexcept;
+        bool take_damage(i32 amount = 1) noexcept;
+        void apply_impulse(Vector2 impulse) noexcept { vel = Vector2Add(vel, impulse); }
+
+        [[nodiscard]] AsteroidVariant get_variant() const noexcept { return variant; }
         [[nodiscard]] bool is_offscreen(Vector2 view_center, i32 screen_w, i32 screen_h, f32 margin = 120.0f) const noexcept;
         [[nodiscard]] bool is_expired() const noexcept;
         [[nodiscard]] bool collides_with(Vector2 point, f32 point_radius) const noexcept;
@@ -45,6 +94,7 @@ struct Asteroid {
         [[nodiscard]] f32 get_radius() const noexcept { return radius; }
 
     private:
+        AsteroidVariant variant{ AsteroidVariant::Standard };
         assets::Sprite sprite{ };
         Vector2 pos{ Vector2Zero() };
         Vector2 vel{ Vector2Zero() };
@@ -54,7 +104,15 @@ struct Asteroid {
         f32 angular_vel{ 0.0f };
         f32 ttl{ -1.0f };
         f32 max_ttl{ 1.0f };
+        i32 health{ 1 };
         bool is_fragment{ false };
+};
+
+struct ShatterEvent {
+    Vector2 pos{ Vector2Zero() };
+    f32 scale{ 2.0f };
+    AsteroidVariant variant{ AsteroidVariant::Standard };
+    bool by_player{ false };
 };
 
 struct AsteroidField {
@@ -63,11 +121,22 @@ struct AsteroidField {
 
         void update(f32 dt, Vector2 view_center, Blaster& blaster, PowerupField& powerups) noexcept;
         void draw() const noexcept;
-        void spawn_explosion(Vector2 origin, f32 parent_scale) noexcept;
-        void spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale = 2.2f) noexcept;
+        void spawn_explosion(
+            Vector2 origin,
+            f32 parent_scale,
+            bool by_player = false,
+            AsteroidVariant variant = AsteroidVariant::Standard
+        ) noexcept;
+        void spawn_custom(
+            Vector2 origin,
+            Vector2 velocity,
+            f32 custom_scale = 2.2f,
+            AsteroidVariant variant = AsteroidVariant::Standard
+        ) noexcept;
         void clear() noexcept;
         void set_target_count(u64 count) noexcept { target_count = count; }
         void reset(Vector2 initial_center) noexcept;
+        [[nodiscard]] std::vector<ShatterEvent> consume_shatter_events() noexcept;
         [[nodiscard]] std::vector<Asteroid>& get_asteroids() noexcept { return asteroids; }
         [[nodiscard]] const std::vector<Asteroid>& get_asteroids() const noexcept { return asteroids; }
         [[nodiscard]] const std::vector<Asteroid>& get_fragments() const noexcept { return fragments; }
@@ -76,6 +145,7 @@ struct AsteroidField {
         u64 target_count{ 12 };
         std::vector<Asteroid> asteroids;
         std::vector<Asteroid> fragments;
+        std::vector<ShatterEvent> shatter_events{ };
 };
 
 } // namespace asteroides

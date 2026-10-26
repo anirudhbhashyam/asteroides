@@ -42,9 +42,15 @@ World::World(Vector2 initial_target, u64 star_count) {
 
 void World::reset_camera(Vector2 target_pos) noexcept {
     camera.target = target_pos;
+    trauma = 0.0f;
+}
+
+void World::add_trauma(f32 amount) noexcept {
+    trauma = std::clamp(trauma + amount, 0.0f, 1.0f);
 }
 
 void World::update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept {
+    trauma = std::fmaxf(0.0f, trauma - 1.85f * dt);
     const f32 lerp_factor{ std::fminf(1.0f, camera_smooth_speed * dt) };
     camera.target = Vector2Lerp(camera.target, target_pos, lerp_factor);
 
@@ -78,7 +84,16 @@ void World::draw_background() const noexcept {
 }
 
 void World::begin_camera() const noexcept {
-    BeginMode2D(camera);
+    Camera2D shaken{ camera };
+    if (trauma > 0.001f) {
+        const f32 shake{ trauma * trauma };
+        constexpr f32 max_offset{ 14.0f };
+        constexpr f32 max_angle{ 2.2f };
+        shaken.offset.x += Random::real(-1.0f, 1.0f) * max_offset * shake;
+        shaken.offset.y += Random::real(-1.0f, 1.0f) * max_offset * shake;
+        shaken.rotation = Random::real(-1.0f, 1.0f) * max_angle * shake;
+    }
+    BeginMode2D(shaken);
 }
 
 void World::end_camera() const noexcept {

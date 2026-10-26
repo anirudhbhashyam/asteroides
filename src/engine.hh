@@ -89,6 +89,8 @@ struct InputState {
     Vector2 move_axis{ 0.0f, 0.0f };
     bool fire_down{ false };
     bool fire_pressed{ false };
+    bool dash_pressed{ false };
+    bool strafe_lock_down{ false };
     bool confirm_pressed{ false };
     bool pause_pressed{ false };
     bool restart_pressed{ false };

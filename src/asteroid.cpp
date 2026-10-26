@@ -2,7 +2,7 @@
 
 namespace asteroides {
 
-std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels() noexcept {
+std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels(AsteroidVariant variant) noexcept {
     constexpr f32 cx{ 16.5f };
     constexpr f32 cy{ 16.5f };
     constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
@@ -79,7 +79,13 @@ std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels() noexcept {
         }
     }
 
-    // Pass 2: Add outer rocky grey rim/shadow (#4e4d50ff)
+    const Color rim_color{
+        variant == AsteroidVariant::Volatile ? COLOR_RIM_VOLATILE :
+        variant == AsteroidVariant::GoldCore ? COLOR_RIM_GOLD :
+                                               COLOR_RIM
+    };
+
+    // Pass 2: Add outer rocky rim/shadow
     for (i32 y{ 1 }; y < SPRITE_SIZE - 1; ++y) {
         for (i32 x{ 1 }; x < SPRITE_SIZE - 1; ++x) {
             const u64 idx{ static_cast<u64>(y * SPRITE_SIZE + x) };
@@ -105,7 +111,7 @@ std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels() noexcept {
             };
 
             if (left_or_bottom_rim || top_or_right_accent) {
-                pixels[idx] = COLOR_RIM;
+                pixels[idx] = rim_color;
             }
         }
     }
@@ -114,8 +120,17 @@ std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels() noexcept {
 }
 
 Asteroid Asteroid::spawn_from_edge(Vector2 view_center, i32 screen_w, i32 screen_h) noexcept {
+    const f32 roll{ Random::real() };
+    const AsteroidVariant chosen_variant{
+        roll < 0.77f ? AsteroidVariant::Standard :
+        roll < 0.92f ? AsteroidVariant::Volatile :
+                       AsteroidVariant::GoldCore
+    };
+
     Asteroid asteroid{ };
-    const auto pixels{ generate_pixels() };
+    asteroid.variant = chosen_variant;
+    asteroid.health = (chosen_variant == AsteroidVariant::GoldCore) ? 2 : 1;
+    const auto pixels{ generate_pixels(chosen_variant) };
     asteroid.sprite = assets::Sprite{ pixels.data(), SPRITE_SIZE, SPRITE_SIZE };
     asteroid.scale = Random::real(1.75f, 2.75f);
     asteroid.radius = 9.0f * asteroid.scale;
@@ -156,9 +171,16 @@ Asteroid Asteroid::spawn_from_edge(Vector2 view_center, i32 screen_w, i32 screen
     return asteroid;
 }
 
-Asteroid Asteroid::spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale) noexcept {
+Asteroid Asteroid::spawn_custom(
+    Vector2 origin,
+    Vector2 velocity,
+    f32 custom_scale,
+    AsteroidVariant variant
+) noexcept {
     Asteroid asteroid{ };
-    const auto pixels{ generate_pixels() };
+    asteroid.variant = variant;
+    asteroid.health = (variant == AsteroidVariant::GoldCore) ? 2 : 1;
+    const auto pixels{ generate_pixels(variant) };
     asteroid.sprite = assets::Sprite{ pixels.data(), SPRITE_SIZE, SPRITE_SIZE };
     asteroid.pos = origin;
     asteroid.vel = velocity;
@@ -169,9 +191,15 @@ Asteroid Asteroid::spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_sca
     return asteroid;
 }
 
-Asteroid Asteroid::spawn_fragment(Vector2 origin, f32 parent_scale, f32 angle_rad) noexcept {
+Asteroid Asteroid::spawn_fragment(
+    Vector2 origin,
+    f32 parent_scale,
+    f32 angle_rad,
+    AsteroidVariant variant
+) noexcept {
     Asteroid frag{ };
-    const auto pixels{ generate_pixels() };
+    frag.variant = variant;
+    const auto pixels{ generate_pixels(variant) };
     frag.sprite = assets::Sprite{ pixels.data(), SPRITE_SIZE, SPRITE_SIZE };
     frag.scale = parent_scale * Random::real(0.4f, 0.6f);
     frag.radius = 9.0f * frag.scale;
@@ -185,6 +213,11 @@ Asteroid Asteroid::spawn_fragment(Vector2 origin, f32 parent_scale, f32 angle_ra
     frag.pos = Vector2Add(origin, Vector2Scale(dir, 6.0f));
     frag.vel = Vector2Scale(dir, Random::real(90.0f, 220.0f));
     return frag;
+}
+
+bool Asteroid::take_damage(i32 amount) noexcept {
+    health -= amount;
+    return health <= 0;
 }
 
 void Asteroid::update(f32 dt) noexcept {
@@ -271,7 +304,19 @@ void Asteroid::resolve_physics_collision(Asteroid& a, Asteroid& b) noexcept {
     b.angular_vel = std::fmaxf(-240.0f, std::fminf(240.0f, b.angular_vel + tangent_speed * 0.4f));
 }
 
-void AsteroidField::spawn_explosion(Vector2 origin, f32 parent_scale) noexcept {
+void AsteroidField::spawn_explosion(
+    Vector2 origin,
+    f32 parent_scale,
+    bool by_player,
+    AsteroidVariant variant
+) noexcept {
+    shatter_events.push_back(ShatterEvent{
+        .pos = origin,
+        .scale = parent_scale,
+        .variant = variant,
+        .by_player = by_player
+    });
+
     constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
     const u32 frag_count{ Random::uint(3, 5) };
     const f32 base_offset{ Random::real(0.0f, two_pi) };
@@ -279,8 +324,12 @@ void AsteroidField::spawn_explosion(Vector2 origin, f32 parent_scale) noexcept {
     for (u32 i{ 0 }; i < frag_count; ++i) {
         const f32 sector{ base_offset + (static_cast<f32>(i) / static_cast<f32>(frag_count)) * two_pi };
         const f32 angle{ sector + Random::real(-0.35f, 0.35f) };
-        fragments.push_back(Asteroid::spawn_fragment(origin, parent_scale, angle));
+        fragments.push_back(Asteroid::spawn_fragment(origin, parent_scale, angle, variant));
     }
+}
+
+std::vector<ShatterEvent> AsteroidField::consume_shatter_events() noexcept {
+    return std::exchange(shatter_events, { });
 }
 
 AsteroidField::AsteroidField(Vector2 initial_center, u64 count)
@@ -291,6 +340,7 @@ AsteroidField::AsteroidField(Vector2 initial_center, u64 count)
 void AsteroidField::reset(Vector2 initial_center) noexcept {
     asteroids.clear();
     fragments.clear();
+    shatter_events.clear();
     asteroids.reserve(target_count);
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
@@ -302,15 +352,24 @@ void AsteroidField::reset(Vector2 initial_center) noexcept {
 void AsteroidField::clear() noexcept {
     asteroids.clear();
     fragments.clear();
+    shatter_events.clear();
 }
 
-void AsteroidField::spawn_custom(Vector2 origin, Vector2 velocity, f32 custom_scale) noexcept {
-    asteroids.push_back(Asteroid::spawn_custom(origin, velocity, custom_scale));
+void AsteroidField::spawn_custom(
+    Vector2 origin,
+    Vector2 velocity,
+    f32 custom_scale,
+    AsteroidVariant variant
+) noexcept {
+    asteroids.push_back(Asteroid::spawn_custom(origin, velocity, custom_scale, variant));
 }
 
 void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, PowerupField& powerups) noexcept {
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
+    while (static_cast<u64>(asteroids.size()) < target_count) {
+        asteroids.push_back(Asteroid::spawn_from_edge(view_center, w, h));
+    }
     constexpr f32 bolt_radius{ 4.0f };
 
     auto& bolts{ blaster.get_bolts() };
@@ -318,18 +377,23 @@ void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, Poweru
     for (auto ast_it{ asteroids.begin() }; ast_it != asteroids.end();) {
         ast_it->update(dt);
 
-        bool hit{ false };
+        bool shattered{ false };
         for (auto it{ bolts.begin() }; it != bolts.end(); ++it) {
             if (ast_it->collides_with(it->pos, bolt_radius)) {
                 bolts.erase(it);
-                hit = true;
+                shattered = ast_it->take_damage(1);
                 break;
             }
         }
 
-        if (hit) {
-            spawn_explosion(ast_it->get_pos(), ast_it->get_scale());
-            powerups.try_spawn(ast_it->get_pos());
+        if (shattered) {
+            const AsteroidVariant var{ ast_it->get_variant() };
+            spawn_explosion(ast_it->get_pos(), ast_it->get_scale(), true, var);
+            if (var == AsteroidVariant::GoldCore) {
+                powerups.spawn_guaranteed(ast_it->get_pos());
+            } else {
+                powerups.try_spawn(ast_it->get_pos());
+            }
             if (target_count > 0) {
                 *ast_it = Asteroid::spawn_from_edge(view_center, w, h);
                 ++ast_it;
@@ -359,8 +423,8 @@ void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, Poweru
             if (asteroids[i].collides_with(asteroids[j])) {
                 // 35% chance to shatter on impact, 65% chance to bounce with 2D impulse physics
                 if (Random::real() < 0.35f) {
-                    spawn_explosion(asteroids[i].get_pos(), asteroids[i].get_scale());
-                    spawn_explosion(asteroids[j].get_pos(), asteroids[j].get_scale());
+                    spawn_explosion(asteroids[i].get_pos(), asteroids[i].get_scale(), false, asteroids[i].get_variant());
+                    spawn_explosion(asteroids[j].get_pos(), asteroids[j].get_scale(), false, asteroids[j].get_variant());
                     asteroids[i] = Asteroid::spawn_from_edge(view_center, w, h);
                     asteroids[j] = Asteroid::spawn_from_edge(view_center, w, h);
                     break;

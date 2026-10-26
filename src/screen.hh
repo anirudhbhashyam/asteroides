@@ -1,11 +1,17 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <numbers>
 #include <string_view>
 
+#include "asteroid.hh"
+#include "enemy.hh"
 #include "engine.hh"
+#include "powerup.hh"
 #include "raylib.h"
+#include "raymath.h"
 #include "spaceship.hh"
 
 namespace asteroides {
@@ -74,13 +80,39 @@ constexpr LayerPolicy get_layer_policy(ScreenState state) noexcept {
     return { };
 }
 
+struct ProgressionState {
+    static constexpr f32 COMBO_DURATION{ 4.0f };
+    static constexpr f32 MAX_MULTIPLIER{ 8.0f };
+    static constexpr f32 WAVE_DURATION{ 28.0f };
+
+    u64 score{ 0 };
+    u64 high_score{ 0 };
+    f32 combo_multiplier{ 1.0f };
+    f32 combo_timer{ 0.0f };
+    u32 current_wave{ 1 };
+    f32 wave_timer{ 0.0f };
+    f32 wave_banner_timer{ 2.2f };
+
+    void reset() noexcept;
+    [[nodiscard]] bool update(f32 dt) noexcept;
+    [[nodiscard]] u64 add_kill_score(u64 base_points) noexcept;
+    void on_player_damaged() noexcept;
+};
+
 struct ScreenManager {
     public:
         ScreenManager() noexcept = default;
 
         [[nodiscard]] ScreenAction update(f32 dt, const InputState& input, bool player_alive) noexcept;
-        void draw_hud(const Spaceship& spaceship) const noexcept;
-        void draw_overlay() const noexcept;
+        void draw_hud(
+            const Spaceship& spaceship,
+            const ProgressionState& progression,
+            const EnemyField& enemies,
+            const PowerupField& powerups,
+            const AsteroidField& asteroids,
+            Vector2 view_center
+        ) const noexcept;
+        void draw_overlay(const ProgressionState& progression) const noexcept;
 
         [[nodiscard]] ScreenState get_state() const noexcept { return state; }
         [[nodiscard]] std::string_view get_state_name() const noexcept;
@@ -89,9 +121,21 @@ struct ScreenManager {
 
     private:
         void _draw_centered_text(const char* text, i32 y, i32 font_size, Color color) const noexcept;
-        void _draw_start() const noexcept;
+        void _draw_start(const ProgressionState& progression) const noexcept;
         void _draw_paused() const noexcept;
-        void _draw_game_over() const noexcept;
+        void _draw_game_over(const ProgressionState& progression) const noexcept;
+        void _draw_edge_indicators(
+            const EnemyField& enemies,
+            const PowerupField& powerups,
+            Vector2 view_center
+        ) const noexcept;
+        void _draw_radar(
+            const Spaceship& spaceship,
+            const EnemyField& enemies,
+            const PowerupField& powerups,
+            const AsteroidField& asteroids,
+            Vector2 view_center
+        ) const noexcept;
 
         ScreenState state{ ScreenState::Start };
         f32 pulse_timer{ 0.0f };

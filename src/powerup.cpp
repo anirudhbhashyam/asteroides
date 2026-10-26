@@ -42,6 +42,14 @@ void PowerupField::try_spawn(Vector2 origin) noexcept {
     }
 }
 
+void PowerupField::spawn_guaranteed(Vector2 origin) noexcept {
+    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
+    const f32 angle{ Random::real(0.0f, two_pi) };
+    const f32 speed{ Random::real(15.0f, 35.0f) };
+    const PowerupType chosen{ static_cast<PowerupType>(Random::uint(0, static_cast<u32>(POWERUP_COUNT - 1))) };
+    spawn_specific(chosen, origin, Vector2{ std::cosf(angle) * speed, std::sinf(angle) * speed });
+}
+
 void PowerupField::spawn_specific(PowerupType type, Vector2 origin, Vector2 vel) noexcept {
     const u64 idx{ static_cast<u64>(type) };
     if (idx >= POWERUP_COUNT) return;
@@ -76,6 +84,10 @@ void PowerupField::update(f32 dt, Spaceship& spaceship) noexcept {
             } else if (it->effect_duration > 0.0f) {
                 spaceship.activate_powerup(it->type, it->effect_duration);
             }
+            collected_events.push_back(CollectedPowerup{
+                .type = it->type,
+                .pos = it->pos
+            });
             it = powerups.erase(it);
         } else if (it->ttl <= 0.0f) {
             it = powerups.erase(it);
