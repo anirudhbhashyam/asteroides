@@ -138,11 +138,12 @@ if em++ "${OBJECTS[@]}" "./${RELEASE_NAME}/lib/libraylib.web.a" -o "${WEB_DIR}/i
     BOOTSTRAP_SRI="sha384-$(openssl dgst -sha384 -binary "${WEB_DIR}/bootstrap.js" | openssl base64 -A)"
     INDEX_SRI="sha384-$(openssl dgst -sha384 -binary "${WEB_DIR}/index.js" | openssl base64 -A)"
 
-    sed -i '' \
+    sed \
         -e "s|<script src=\"*bootstrap.js\"*></script>|<script src=\"bootstrap.js\" integrity=\"${BOOTSTRAP_SRI}\" crossorigin=\"anonymous\"></script>|g" \
         -e "s|<script src=index.js async></script>|<script async src=\"index.js\" integrity=\"${INDEX_SRI}\" crossorigin=\"anonymous\"></script>|g" \
         -e "s|<script async type=\"*text/javascript\"* src=\"*index.js\"*></script>|<script async src=\"index.js\" integrity=\"${INDEX_SRI}\" crossorigin=\"anonymous\"></script>|g" \
-        "${WEB_DIR}/index.html"
+        "${WEB_DIR}/index.html" > "${WEB_DIR}/index.html.tmp"
+    mv "${WEB_DIR}/index.html.tmp" "${WEB_DIR}/index.html"
 
     touch "${WEB_DIR}/.nojekyll"
 
