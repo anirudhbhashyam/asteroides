@@ -21,30 +21,28 @@ void PowerupField::try_spawn(Vector2 origin) noexcept {
     for (u64 i{ 0 }; i < POWERUP_COUNT; ++i) {
         cumulative += configs[i].drop_chance;
         if (roll <= cumulative) {
-            constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
-            const f32 angle{ Random::real(0.0f, two_pi) };
+            const f32 angle{ Random::real(0.0f, TWO_PI) };
             const f32 speed{ Random::real(15.0f, 40.0f) };
 
-            powerups.push_back(Powerup{
-                .type = configs[i].type,
-                .sprite = assets::Sprite{ configs[i].asset_name },
-                .pos = origin,
-                .vel = Vector2{ std::cosf(angle) * speed, std::sinf(angle) * speed },
-                .scale = 1.5f,
-                .radius = 18.0f,
-                .ttl = configs[i].world_ttl,
-                .max_ttl = configs[i].world_ttl,
-                .effect_duration = configs[i].effect_duration,
-                .pulse_phase = Random::real(0.0f, two_pi)
-            });
+            powerups.emplace_back(
+                configs[i].type,
+                assets::Sprite{ configs[i].asset_name },
+                origin,
+                Vector2{ std::cosf(angle) * speed, std::sinf(angle) * speed },
+                1.5f,
+                18.0f,
+                configs[i].world_ttl,
+                configs[i].world_ttl,
+                configs[i].effect_duration,
+                Random::real(0.0f, TWO_PI)
+            );
             return;
         }
     }
 }
 
 void PowerupField::spawn_guaranteed(Vector2 origin) noexcept {
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
-    const f32 angle{ Random::real(0.0f, two_pi) };
+    const f32 angle{ Random::real(0.0f, TWO_PI) };
     const f32 speed{ Random::real(15.0f, 35.0f) };
     const PowerupType chosen{ static_cast<PowerupType>(Random::uint(0, static_cast<u32>(POWERUP_COUNT - 1))) };
     spawn_specific(chosen, origin, Vector2{ std::cosf(angle) * speed, std::sinf(angle) * speed });
@@ -54,29 +52,28 @@ void PowerupField::spawn_specific(PowerupType type, Vector2 origin, Vector2 vel)
     const u64 idx{ static_cast<u64>(type) };
     if (idx >= POWERUP_COUNT) return;
 
-    powerups.push_back(Powerup{
-        .type = configs[idx].type,
-        .sprite = assets::Sprite{ configs[idx].asset_name },
-        .pos = origin,
-        .vel = vel,
-        .scale = 1.5f,
-        .radius = 18.0f,
-        .ttl = configs[idx].world_ttl,
-        .max_ttl = configs[idx].world_ttl,
-        .effect_duration = configs[idx].effect_duration,
-        .pulse_phase = 0.0f
-    });
+    powerups.emplace_back(
+        configs[idx].type,
+        assets::Sprite{ configs[idx].asset_name },
+        origin,
+        vel,
+        1.5f,
+        18.0f,
+        configs[idx].world_ttl,
+        configs[idx].world_ttl,
+        configs[idx].effect_duration,
+        0.0f
+    );
 }
 
 void PowerupField::update(f32 dt, Spaceship& spaceship) noexcept {
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
     const Vector2 ship_pos{ spaceship.get_pos() };
     const f32 ship_radius{ spaceship.get_radius() };
 
     for (auto it{ powerups.begin() }; it != powerups.end();) {
         it->pos = Vector2Add(it->pos, Vector2Scale(it->vel, dt));
         it->ttl -= dt;
-        it->pulse_phase = std::fmodf(it->pulse_phase + 5.0f * dt, two_pi);
+        it->pulse_phase = std::fmodf(it->pulse_phase + 5.0f * dt, TWO_PI);
 
         if (CheckCollisionCircles(ship_pos, ship_radius, it->pos, it->radius)) {
             if (it->type == PowerupType::IncreaseHealth) {
@@ -84,10 +81,7 @@ void PowerupField::update(f32 dt, Spaceship& spaceship) noexcept {
             } else if (it->effect_duration > 0.0f) {
                 spaceship.activate_powerup(it->type, it->effect_duration);
             }
-            collected_events.push_back(CollectedPowerup{
-                .type = it->type,
-                .pos = it->pos
-            });
+            collected_events.emplace_back(it->type, it->pos);
             it = powerups.erase(it);
         } else if (it->ttl <= 0.0f) {
             it = powerups.erase(it);

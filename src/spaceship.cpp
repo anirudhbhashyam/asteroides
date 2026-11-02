@@ -49,7 +49,7 @@ void Spaceship::draw() const noexcept {
             if (thrusting) {
                 const f32 main_scale{ scale * (is_dashing() ? 1.15f : 0.92f) };
                 const Vector2 main_nozzle{
-                    Vector2Subtract(pos, Vector2Scale(forward, 17.0f * scale))
+                    Vector2Subtract(pos, Vector2Scale(forward, 16.0f * scale))
                 };
                 flame_sprite.draw(main_nozzle, main_src, rotation, main_scale, flame_tint);
             }
@@ -186,14 +186,11 @@ void Spaceship::update(const f32 dt, const InputState& input) noexcept {
 
     // Common powerup timer update across all active powerup effects
     for (f32& timer : powerup_timers) {
-        if (timer > 0.0f) {
-            timer = std::fmaxf(0.0f, timer - dt);
-        }
+        timer = std::max(0.0f, timer - dt);
     }
 
     if (is_shielded()) {
-        constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
-        halo_pulse_timer = std::fmodf(halo_pulse_timer + 6.0f * dt, two_pi);
+        halo_pulse_timer = std::fmodf(halo_pulse_timer + 6.0f * dt, TWO_PI);
     }
 
     if (!is_alive()) {

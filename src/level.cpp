@@ -38,12 +38,8 @@ void DeathZoneState::deactivate() noexcept {
 }
 
 bool DeathZoneState::update(f32 dt, bool warden_alive) noexcept {
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
-    pulse_timer = std::fmodf(pulse_timer + 5.0f * dt, two_pi);
-
-    if (cooldown_timer > 0.0f) {
-        cooldown_timer = std::fmaxf(0.0f, cooldown_timer - dt);
-    }
+    pulse_timer = std::fmod(pulse_timer + 5.0f * dt, TWO_PI);
+    cooldown_timer = std::max(0.0f, cooldown_timer - dt);
 
     if (!active) return false;
 
@@ -128,6 +124,7 @@ bool DeathZoneState::enforce_player_bounds(
         engine.trigger_hitstop(0.03f);
         if (!spaceship.is_alive()) {
             particles.emit(pos, Spaceship::EXPLOSION_EFFECT, vel);
+            particles.emit_explosion(pos, ExplosionType::Player, 3.0f, 0.52f, vel);
             world.add_trauma(0.65f);
         }
         return true;
@@ -189,18 +186,18 @@ ObjectiveEntity& LevelManager::spawn_objective(
         type == ObjectiveEntityType::Beacon ? 28.0f :
                                               32.0f
     };
-    entities.push_back(ObjectiveEntity{
-        .type = type,
-        .pos = pos,
-        .radius = r,
-        .rotation = 0.0f,
-        .pulse_timer = Random::real(0.0f, 6.28f),
-        .charge_progress = 0.0f,
-        .charge_duration = std::fmaxf(0.5f, charge_time),
-        .proximity_radius = 145.0f,
-        .active = true,
-        .completed = false
-    });
+    entities.emplace_back(
+        type,
+        pos,
+        r,
+        0.0f,
+        Random::real(0.0f, TWO_PI),
+        0.0f,
+        std::max(0.5f, charge_time),
+        145.0f,
+        true,
+        false
+    );
     return entities.back();
 }
 
@@ -410,11 +407,10 @@ void LevelManager::update(
     if (mode != GameMode::Levels) return;
 
     const LevelDefinition& def{ get_definition() };
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
 
     for (ObjectiveEntity& obj : entities) {
         if (!obj.active) continue;
-        obj.pulse_timer = std::fmodf(obj.pulse_timer + 3.8f * dt, two_pi);
+        obj.pulse_timer = std::fmodf(obj.pulse_timer + 3.8f * dt, TWO_PI);
 
         if (obj.type == ObjectiveEntityType::Star) {
             obj.rotation = std::fmodf(obj.rotation + 42.0f * dt, 360.0f);

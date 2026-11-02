@@ -3,18 +3,17 @@
 namespace asteroides {
 
 std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels(AsteroidVariant variant) noexcept {
-    constexpr f32 cx{ 16.5f };
-    constexpr f32 cy{ 16.5f };
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
-    constexpr f32 angle_step{ two_pi / static_cast<f32>(VERTEX_COUNT) };
+    constexpr f32 cx{ 16.0f };
+    constexpr f32 cy{ 16.0f };
+    constexpr f32 angle_step{ TWO_PI / static_cast<f32>(VERTEX_COUNT) };
 
     std::array<Vector2, VERTEX_COUNT> verts{ };
     const u64 notch_idx{ static_cast<u64>(Random::uint(0, static_cast<u32>(VERTEX_COUNT - 1))) };
 
     for (u64 i{ 0 }; i < VERTEX_COUNT; ++i) {
         const f32 base_angle{ static_cast<f32>(i) * angle_step };
-        const f32 angle{ base_angle + Random::real(-angle_step * 0.25f, angle_step * 0.25f) };
-        const f32 r{ (i == notch_idx) ? Random::real(3.8f, 5.2f) : Random::real(6.0f, 9.2f) };
+        const f32 angle{ base_angle + Random::real(-angle_step * 0.22f, angle_step * 0.22f) };
+        const f32 r{ (i == notch_idx) ? Random::real(4.5f, 5.8f) : Random::real(6.5f, 9.4f) };
         verts[i] = Vector2{
             cx + std::cosf(angle) * r,
             cy + std::sinf(angle) * r
@@ -25,8 +24,8 @@ std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels(AsteroidVaria
     const f32 spur_angle{ static_cast<f32>(spur_idx) * angle_step };
     const Vector2 spur_start{ verts[spur_idx] };
     const Vector2 spur_end{
-        spur_start.x + std::cosf(spur_angle) * 2.2f,
-        spur_start.y + std::sinf(spur_angle) * 2.2f
+        spur_start.x + std::cosf(spur_angle) * 1.8f,
+        spur_start.y + std::sinf(spur_angle) * 1.8f
     };
 
     auto dist_sq_to_segment = [](Vector2 p, Vector2 a, Vector2 b) noexcept -> f32 {
@@ -42,13 +41,34 @@ std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels(AsteroidVaria
         return dx * dx + dy * dy;
     };
 
-    std::array<bool, PIXEL_COUNT> inside_mask{ };
+    const Color rim_main{
+        variant == AsteroidVariant::Volatile ? COLOR_RIM_VOLATILE :
+        variant == AsteroidVariant::GoldCore ? COLOR_RIM_GOLD :
+                                               COLOR_RIM
+    };
+    const Color rim_highlight{
+        variant == AsteroidVariant::Volatile ? hex_to_color(0xf87171ff) :
+        variant == AsteroidVariant::GoldCore ? hex_to_color(0xfef08aff) :
+                                               hex_to_color(0x78777cff)
+    };
+    const Color body_mid{
+        variant == AsteroidVariant::Volatile ? hex_to_color(0x2a0e14ff) :
+        variant == AsteroidVariant::GoldCore ? hex_to_color(0x2d230eff) :
+                                               hex_to_color(0x1a1a20ff)
+    };
+    const Color core_fissure{
+        variant == AsteroidVariant::Volatile ? hex_to_color(0xf97316ff) :
+        variant == AsteroidVariant::GoldCore ? hex_to_color(0xeab308ff) :
+                                               body_mid
+    };
+
+    std::array<bool, PIXEL_COUNT> body_mask{ };
     std::array<Color, PIXEL_COUNT> pixels{ };
     pixels.fill(COLOR_EMPTY);
 
-    // Pass 1: Rasterize thick black rocky contour (#000000ff)
-    for (i32 y{ 0 }; y < SPRITE_SIZE; ++y) {
-        for (i32 x{ 0 }; x < SPRITE_SIZE; ++x) {
+    // Pass 1: Rasterize solid rocky interior + contour so the body is never hollow
+    for (i32 y{ 2 }; y < SPRITE_SIZE - 2; ++y) {
+        for (i32 x{ 2 }; x < SPRITE_SIZE - 2; ++x) {
             const Vector2 p{ static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f };
 
             bool inside{ false };
@@ -68,50 +88,55 @@ std::array<Color, Asteroid::PIXEL_COUNT> Asteroid::generate_pixels(AsteroidVaria
             }
 
             const u64 idx{ static_cast<u64>(y * SPRITE_SIZE + x) };
-            inside_mask[idx] = inside;
-
             const f32 spur_d_sq{ dist_sq_to_segment(p, spur_start, spur_end) };
-            if ((inside && min_edge_dist_sq <= 2.15f * 2.15f) ||
-                min_edge_dist_sq <= 0.75f * 0.75f ||
-                spur_d_sq <= 0.85f * 0.85f) {
-                pixels[idx] = COLOR_BODY;
+
+            if (inside || min_edge_dist_sq <= 0.75f * 0.75f || spur_d_sq <= 0.85f * 0.85f) {
+                body_mask[idx] = true;
+                const f32 dx_c{ p.x - cx };
+                const f32 dy_c{ p.y - cy };
+                const f32 center_dist_sq{ dx_c * dx_c + dy_c * dy_c };
+
+                if (min_edge_dist_sq <= 2.15f * 2.15f) {
+                    pixels[idx] = COLOR_BODY;
+                } else if (variant != AsteroidVariant::Standard && center_dist_sq < 7.5f && (dx_c + dy_c) < 0.5f) {
+                    pixels[idx] = core_fissure;
+                } else if ((dx_c + dy_c) < -1.2f) {
+                    pixels[idx] = body_mid;
+                } else {
+                    pixels[idx] = COLOR_BODY;
+                }
             }
         }
     }
 
-    const Color rim_color{
-        variant == AsteroidVariant::Volatile ? COLOR_RIM_VOLATILE :
-        variant == AsteroidVariant::GoldCore ? COLOR_RIM_GOLD :
-                                               COLOR_RIM
-    };
-
-    // Pass 2: Add outer rocky rim/shadow
+    // Pass 2: Complete, unbroken 360-degree rocky rim around all 8-connected body neighbors
     for (i32 y{ 1 }; y < SPRITE_SIZE - 1; ++y) {
         for (i32 x{ 1 }; x < SPRITE_SIZE - 1; ++x) {
             const u64 idx{ static_cast<u64>(y * SPRITE_SIZE + x) };
-            if (pixels[idx].a != 0 || inside_mask[idx]) {
+            if (body_mask[idx]) {
                 continue;
             }
 
             auto is_body = [&](i32 nx, i32 ny) noexcept -> bool {
                 if (nx < 0 || nx >= SPRITE_SIZE || ny < 0 || ny >= SPRITE_SIZE) return false;
-                const Color c{ pixels[static_cast<u64>(ny * SPRITE_SIZE + nx)] };
-                return c.a != 0 && c.r == 0;
+                return body_mask[static_cast<u64>(ny * SPRITE_SIZE + nx)];
             };
 
-            const bool left_or_bottom_rim{
-                is_body(x + 1, y) ||
-                is_body(x + 2, y) ||
-                is_body(x + 1, y - 1) ||
-                is_body(x, y - 1) ||
-                is_body(x - 1, y - 1)
+            const bool adj_8{
+                is_body(x - 1, y)     || is_body(x + 1, y)     ||
+                is_body(x, y - 1)     || is_body(x, y + 1)     ||
+                is_body(x - 1, y - 1) || is_body(x + 1, y - 1) ||
+                is_body(x - 1, y + 1) || is_body(x + 1, y + 1)
             };
-            const bool top_or_right_accent{
-                (is_body(x - 1, y) || is_body(x, y + 1)) && (Random::uint(0, 2) == 0)
+            const bool thick_bevel{
+                is_body(x + 2, y) || is_body(x, y - 2) || is_body(x + 2, y - 1)
             };
 
-            if (left_or_bottom_rim || top_or_right_accent) {
-                pixels[idx] = rim_color;
+            if (adj_8) {
+                const bool top_or_right_edge{ is_body(x, y + 1) || is_body(x - 1, y) };
+                pixels[idx] = top_or_right_edge ? rim_highlight : rim_main;
+            } else if (thick_bevel) {
+                pixels[idx] = rim_main;
             }
         }
     }
@@ -310,21 +335,15 @@ void AsteroidField::spawn_explosion(
     bool by_player,
     AsteroidVariant variant
 ) noexcept {
-    shatter_events.push_back(ShatterEvent{
-        .pos = origin,
-        .scale = parent_scale,
-        .variant = variant,
-        .by_player = by_player
-    });
+    shatter_events.emplace_back(origin, parent_scale, variant, by_player);
 
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
     const u32 frag_count{ Random::uint(3, 5) };
-    const f32 base_offset{ Random::real(0.0f, two_pi) };
+    const f32 base_offset{ Random::real(0.0f, TWO_PI) };
 
     for (u32 i{ 0 }; i < frag_count; ++i) {
-        const f32 sector{ base_offset + (static_cast<f32>(i) / static_cast<f32>(frag_count)) * two_pi };
+        const f32 sector{ base_offset + (static_cast<f32>(i) / static_cast<f32>(frag_count)) * TWO_PI };
         const f32 angle{ sector + Random::real(-0.35f, 0.35f) };
-        fragments.push_back(Asteroid::spawn_fragment(origin, parent_scale, angle, variant));
+        fragments.emplace_back(Asteroid::spawn_fragment(origin, parent_scale, angle, variant));
     }
 }
 
@@ -345,7 +364,7 @@ void AsteroidField::reset(Vector2 initial_center) noexcept {
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
     for (u64 i{ 0 }; i < target_count; ++i) {
-        asteroids.push_back(Asteroid::spawn_from_edge(initial_center, w, h));
+        asteroids.emplace_back(Asteroid::spawn_from_edge(initial_center, w, h));
     }
 }
 
@@ -361,14 +380,14 @@ void AsteroidField::spawn_custom(
     f32 custom_scale,
     AsteroidVariant variant
 ) noexcept {
-    asteroids.push_back(Asteroid::spawn_custom(origin, velocity, custom_scale, variant));
+    asteroids.emplace_back(Asteroid::spawn_custom(origin, velocity, custom_scale, variant));
 }
 
 void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, PowerupField& powerups) noexcept {
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
     while (static_cast<u64>(asteroids.size()) < target_count) {
-        asteroids.push_back(Asteroid::spawn_from_edge(view_center, w, h));
+        asteroids.emplace_back(Asteroid::spawn_from_edge(view_center, w, h));
     }
     constexpr f32 bolt_radius{ 4.0f };
 

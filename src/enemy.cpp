@@ -123,38 +123,74 @@ void EnemySpaceship::update(f32 dt, Vector2 player_pos, bool player_alive, Vecto
         hit_flash_timer = std::fmaxf(0.0f, hit_flash_timer - dt);
     }
 
-    if (player_alive) {
-        const Vector2 to_player{ Vector2Subtract(player_pos, pos) };
-        const f32 dist{ Vector2Length(to_player) };
-        const Vector2 dir{ dist > 0.001f ? Vector2Scale(to_player, 1.0f / dist) : Vector2{ 0.0f, -1.0f } };
+    if (!player_alive) {
+        telegraph_timer = 0.0f;
+    }
 
-        const f32 player_angle_deg{ std::atan2f(dir.x, -dir.y) * RAD2DEG };
+    const Vector2 to_player{ Vector2Subtract(player_pos, pos) };
+    const f32 dist{ Vector2Length(to_player) };
+    const Vector2 dir{ dist > 0.001f ? Vector2Scale(to_player, 1.0f / dist) : Vector2{ 0.0f, -1.0f } };
 
-        if (archetype == EnemyArchetype::Battlestar) {
-            mode_switch_timer -= dt;
-            if (mode_switch_timer <= 0.0f) {
-                battlestar_mode = (battlestar_mode == BattlestarAttackMode::PointyNormal)
-                                      ? BattlestarAttackMode::FlatWave
-                                      : BattlestarAttackMode::PointyNormal;
-                mode_switch_timer = 2.4f;
-            }
+    const f32 player_angle_deg{ std::atan2f(dir.x, -dir.y) * RAD2DEG };
 
-            // At rotation = 0:
-            //   - Flat ends face UP (rotation + 0 deg) and DOWN (rotation + 180 deg)
-            //   - Pointy ends face RIGHT (rotation + 90 deg) and LEFT (rotation - 90 deg)
-            f32 angle_diff{ 0.0f };
+    if (archetype == EnemyArchetype::Battlestar) {
+        mode_switch_timer -= dt;
+        if (mode_switch_timer <= 0.0f) {
+            battlestar_mode = (battlestar_mode == BattlestarAttackMode::PointyNormal)
+                                    ? BattlestarAttackMode::FlatWave
+                                    : BattlestarAttackMode::PointyNormal;
+            mode_switch_timer = 2.4f;
+        }
+
+        // At rotation = 0:
+        //   - Flat ends face UP (rotation + 0 deg) and DOWN (rotation + 180 deg)
+        //   - Pointy ends face RIGHT (rotation + 90 deg) and LEFT (rotation - 90 deg)
+        f32 angle_diff{ 0.0f };
+        if (battlestar_mode == BattlestarAttackMode::PointyNormal) {
+            const f32 diff_a{ std::remainderf((player_angle_deg - 90.0f) - rotation, 360.0f) };
+            const f32 diff_b{ std::remainderf((player_angle_deg + 90.0f) - rotation, 360.0f) };
+            angle_diff = (std::fabsf(diff_a) <= std::fabsf(diff_b)) ? diff_a : diff_b;
+        } else {
+            const f32 diff_a{ std::remainderf(player_angle_deg - rotation, 360.0f) };
+            const f32 diff_b{ std::remainderf((player_angle_deg + 180.0f) - rotation, 360.0f) };
+            angle_diff = (std::fabsf(diff_a) <= std::fabsf(diff_b)) ? diff_a : diff_b;
+        }
+
+        rotation = std::remainderf(rotation + angle_diff * std::fminf(1.0f, turn_speed * dt), 360.0f);
+
+        const Vector2 perp{ -dir.y * strafe_sign, dir.x * strafe_sign };
+        f32 radial_weight{ 0.0f };
+        if (dist > preferred_range + 45.0f) {
+            radial_weight = 1.0f;
+        } else if (dist < preferred_range - 45.0f) {
+            radial_weight = -0.65f;
+        }
+        const Vector2 desired_dir{
+            Vector2Normalize(Vector2Add(Vector2Scale(dir, radial_weight), Vector2Scale(perp, 0.55f)))
+        };
+        vel = Vector2Add(vel, Vector2Scale(desired_dir, accel * dt));
+
+        if (dist < 540.0f && std::fabsf(angle_diff) < 22.0f) {
             if (battlestar_mode == BattlestarAttackMode::PointyNormal) {
-                const f32 diff_a{ std::remainderf((player_angle_deg - 90.0f) - rotation, 360.0f) };
-                const f32 diff_b{ std::remainderf((player_angle_deg + 90.0f) - rotation, 360.0f) };
-                angle_diff = (std::fabsf(diff_a) <= std::fabsf(diff_b)) ? diff_a : diff_b;
+                blaster.fire_bidirectional(pos, vel, rotation + 90.0f);
             } else {
-                const f32 diff_a{ std::remainderf(player_angle_deg - rotation, 360.0f) };
-                const f32 diff_b{ std::remainderf((player_angle_deg + 180.0f) - rotation, 360.0f) };
-                angle_diff = (std::fabsf(diff_a) <= std::fabsf(diff_b)) ? diff_a : diff_b;
+                wave_blaster.fire_bidirectional(pos, vel, rotation);
             }
+        }
+    } else {
+        const f32 angle_diff{ std::remainderf(player_angle_deg - rotation, 360.0f) };
 
+        // Sniper locks rotation during final 0.25s of telegraph before firing
+        const bool aim_locked{
+            archetype == EnemyArchetype::Sniper && telegraph_timer >= (TELEGRAPH_DURATION - 0.25f)
+        };
+        if (!aim_locked) {
             rotation = std::remainderf(rotation + angle_diff * std::fminf(1.0f, turn_speed * dt), 360.0f);
+        }
 
+        if (archetype == EnemyArchetype::Kamikaze) {
+            vel = Vector2Add(vel, Vector2Scale(dir, accel * dt));
+        } else {
             const Vector2 perp{ -dir.y * strafe_sign, dir.x * strafe_sign };
             f32 radial_weight{ 0.0f };
             if (dist > preferred_range + 45.0f) {
@@ -162,71 +198,35 @@ void EnemySpaceship::update(f32 dt, Vector2 player_pos, bool player_alive, Vecto
             } else if (dist < preferred_range - 45.0f) {
                 radial_weight = -0.65f;
             }
+
             const Vector2 desired_dir{
-                Vector2Normalize(Vector2Add(Vector2Scale(dir, radial_weight), Vector2Scale(perp, 0.55f)))
+                Vector2Normalize(Vector2Add(Vector2Scale(dir, radial_weight), Vector2Scale(perp, 0.75f)))
             };
             vel = Vector2Add(vel, Vector2Scale(desired_dir, accel * dt));
+        }
 
-            if (dist < 540.0f && std::fabsf(angle_diff) < 22.0f) {
-                if (battlestar_mode == BattlestarAttackMode::PointyNormal) {
-                    blaster.fire_bidirectional(pos, vel, rotation + 90.0f);
-                } else {
-                    wave_blaster.fire_bidirectional(pos, vel, rotation);
-                }
+        if (archetype == EnemyArchetype::Fighter) {
+            if (dist < 460.0f && std::fabsf(angle_diff) < 25.0f) {
+                blaster.fire(pos, vel, rotation);
             }
-        } else {
-            const f32 angle_diff{ std::remainderf(player_angle_deg - rotation, 360.0f) };
-
-            // Sniper locks rotation during final 0.25s of telegraph before firing
-            const bool aim_locked{
-                archetype == EnemyArchetype::Sniper && telegraph_timer >= (TELEGRAPH_DURATION - 0.25f)
-            };
-            if (!aim_locked) {
-                rotation = std::remainderf(rotation + angle_diff * std::fminf(1.0f, turn_speed * dt), 360.0f);
-            }
-
-            if (archetype == EnemyArchetype::Kamikaze) {
-                vel = Vector2Add(vel, Vector2Scale(dir, accel * dt));
-            } else {
-                const Vector2 perp{ -dir.y * strafe_sign, dir.x * strafe_sign };
-                f32 radial_weight{ 0.0f };
-                if (dist > preferred_range + 45.0f) {
-                    radial_weight = 1.0f;
-                } else if (dist < preferred_range - 45.0f) {
-                    radial_weight = -0.65f;
-                }
-
-                const Vector2 desired_dir{
-                    Vector2Normalize(Vector2Add(Vector2Scale(dir, radial_weight), Vector2Scale(perp, 0.75f)))
-                };
-                vel = Vector2Add(vel, Vector2Scale(desired_dir, accel * dt));
-            }
-
-            if (archetype == EnemyArchetype::Fighter) {
-                if (dist < 460.0f && std::fabsf(angle_diff) < 25.0f) {
+        } else if (archetype == EnemyArchetype::Sniper) {
+            if (telegraph_timer < 0.0f) {
+                telegraph_timer = std::fminf(0.0f, telegraph_timer + dt);
+            } else if (dist < 540.0f && (telegraph_timer > 0.0f || std::fabsf(angle_diff) < 28.0f)) {
+                telegraph_timer += dt;
+                if (telegraph_timer >= TELEGRAPH_DURATION) {
                     blaster.fire(pos, vel, rotation);
+                    telegraph_timer = -0.95f;
                 }
-            } else if (archetype == EnemyArchetype::Sniper) {
-                if (telegraph_timer < 0.0f) {
-                    telegraph_timer = std::fminf(0.0f, telegraph_timer + dt);
-                } else if (dist < 540.0f && (telegraph_timer > 0.0f || std::fabsf(angle_diff) < 28.0f)) {
-                    telegraph_timer += dt;
-                    if (telegraph_timer >= TELEGRAPH_DURATION) {
-                        blaster.fire(pos, vel, rotation);
-                        telegraph_timer = -0.95f;
-                    }
-                } else {
-                    telegraph_timer = std::fmaxf(0.0f, telegraph_timer - dt * 2.0f);
-                }
+            } else {
+                telegraph_timer = std::fmaxf(0.0f, telegraph_timer - dt * 2.0f);
             }
         }
+    }
 
-        const f32 speed{ Vector2Length(vel) };
-        if (speed > max_speed) {
-            vel = Vector2Scale(vel, max_speed / speed);
-        }
-    } else {
-        telegraph_timer = 0.0f;
+    const f32 speed{ Vector2Length(vel) };
+    if (speed > max_speed) {
+        vel = Vector2Scale(vel, max_speed / speed);
     }
 
     pos = Vector2Add(pos, Vector2Scale(vel, dt));
@@ -308,7 +308,7 @@ void EnemyField::update(f32 dt, Vector2 player_pos, bool player_alive, Vector2 v
                 roll < 0.82f                      ? EnemyArchetype::Kamikaze :
                                                     EnemyArchetype::Sniper
             };
-            enemies.push_back(EnemySpaceship::spawn_from_edge(view_center, w, h, chosen));
+            enemies.emplace_back(EnemySpaceship::spawn_from_edge(view_center, w, h, chosen));
             spawn_timer = Random::real(spawn_interval * 0.75f, spawn_interval * 1.25f);
         }
     }
@@ -336,7 +336,7 @@ void EnemyField::reset() noexcept {
 }
 
 EnemySpaceship& EnemyField::spawn_at(Vector2 origin, f32 initial_rotation, EnemyArchetype type) {
-    enemies.push_back(EnemySpaceship::spawn_at(origin, initial_rotation, type));
+    enemies.emplace_back(EnemySpaceship::spawn_at(origin, initial_rotation, type));
     return enemies.back();
 }
 

@@ -30,11 +30,7 @@ void Blaster::_spawn_bolt(Vector2 origin, Vector2 ship_vel, f32 heading_deg) noe
     const Vector2 bolt_vel{ Vector2Scale(dir, speed + forward_ship_speed) };
     const f32 bolt_rot{ heading_deg + sprite_rotation_offset };
 
-    bolts.push_back(Bolt{
-        .pos = spawn_center,
-        .vel = bolt_vel,
-        .rotation = bolt_rot
-    });
+    bolts.emplace_back(spawn_center, bolt_vel, bolt_rot);
 }
 
 void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg, bool double_shot) noexcept {
@@ -52,22 +48,10 @@ void Blaster::fire(Vector2 origin, Vector2 ship_vel, f32 heading_deg, bool doubl
         const Vector2 right{ std::cosf(rad), std::sinf(rad) };
         const Vector2 offset{ Vector2Scale(right, double_spread_offset) };
 
-        bolts.push_back(Bolt{
-            .pos = Vector2Subtract(spawn_center, offset),
-            .vel = bolt_vel,
-            .rotation = bolt_rot
-        });
-        bolts.push_back(Bolt{
-            .pos = Vector2Add(spawn_center, offset),
-            .vel = bolt_vel,
-            .rotation = bolt_rot
-        });
+        bolts.emplace_back(Vector2Subtract(spawn_center, offset), bolt_vel, bolt_rot);
+        bolts.emplace_back(Vector2Add(spawn_center, offset), bolt_vel, bolt_rot);
     } else {
-        bolts.push_back(Bolt{
-            .pos = spawn_center,
-            .vel = bolt_vel,
-            .rotation = bolt_rot
-        });
+        bolts.emplace_back(spawn_center, bolt_vel, bolt_rot);
     }
 }
 

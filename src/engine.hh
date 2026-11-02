@@ -26,6 +26,8 @@ using f64 = double;
 
 namespace asteroides {
 
+inline constexpr f32 TWO_PI{ 2.0f * std::numbers::pi_v<f32> };
+
 consteval Color hex_to_color(u32 hex) {
     // RRGGBBAA
     return {

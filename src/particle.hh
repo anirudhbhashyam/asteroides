@@ -6,13 +6,35 @@
 #include <cstring>
 #include <numbers>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "engine.hh"
 #include "raylib.h"
 #include "raymath.h"
+#include "sprite.hh"
 
 namespace asteroides {
+
+enum class ExplosionType : u8 {
+    Player = 0,
+    Enemy,
+    Battlestar,
+    Volatile,
+    Asteroid,
+    Count
+};
+
+struct AnimatedExplosion {
+    ExplosionType type{ ExplosionType::Enemy };
+    Vector2 pos{ Vector2Zero() };
+    Vector2 vel{ Vector2Zero() };
+    f32 scale{ 2.6f };
+    f32 rotation{ 0.0f };
+    f32 elapsed{ 0.0f };
+    f32 duration{ 0.45f };
+    u32 frame_index{ 0 };
+};
 
 struct Particle {
     Vector2 pos{ Vector2Zero() };
@@ -59,19 +81,51 @@ struct FloatingText {
 
 struct ParticleSystem {
     public:
-        ParticleSystem() noexcept = default;
+        static constexpr f32 EXPLOSION_FRAME_SIZE{ 32.0f };
+        static constexpr u32 EXPLOSION_FRAME_COUNT{ 6 };
+        static constexpr std::string_view PLAYER_EXPLOSION_ASSET{ "explosion_player.png" };
+        static constexpr std::string_view ENEMY_EXPLOSION_ASSET{ "explosion_enemy.png" };
+        static constexpr std::string_view BATTLESTAR_EXPLOSION_ASSET{ "explosion_battlestar.png" };
+        static constexpr std::string_view VOLATILE_EXPLOSION_ASSET{ "explosion_volatile.png" };
+        static constexpr std::string_view ASTEROID_EXPLOSION_ASSET{ "explosion_asteroid.png" };
+
+        ParticleSystem() = default;
 
         void emit(Vector2 origin, const ParticleEffect& effect, Vector2 inherited_vel = Vector2Zero()) noexcept;
+        void emit_explosion(
+            Vector2 origin,
+            ExplosionType type,
+            f32 scale = 2.6f,
+            f32 duration = 0.45f,
+            Vector2 inherited_vel = Vector2Zero()
+        ) noexcept;
         void emit_text(Vector2 origin, std::string_view message, Color color, i32 font_size = 14) noexcept;
         void update(f32 dt) noexcept;
         void draw() const noexcept;
         void clear() noexcept;
         [[nodiscard]] const std::vector<Particle>& get_particles() const noexcept { return particles; }
+        [[nodiscard]] const std::vector<AnimatedExplosion>& get_explosions() const noexcept { return explosions; }
         [[nodiscard]] u64 count() const noexcept { return static_cast<u64>(particles.size()); }
+        [[nodiscard]] u64 explosion_count() const noexcept { return static_cast<u64>(explosions.size()); }
         [[nodiscard]] u64 text_count() const noexcept { return static_cast<u64>(texts.size()); }
+        [[nodiscard]] bool has_valid_explosion_sprites() const noexcept {
+            return player_explosion_sprite.is_valid() &&
+                   enemy_explosion_sprite.is_valid() &&
+                   battlestar_explosion_sprite.is_valid() &&
+                   volatile_explosion_sprite.is_valid() &&
+                   asteroid_explosion_sprite.is_valid();
+        }
 
     private:
+        [[nodiscard]] const assets::Sprite& _get_explosion_sprite(ExplosionType type) const noexcept;
+
+        assets::Sprite player_explosion_sprite{ PLAYER_EXPLOSION_ASSET };
+        assets::Sprite enemy_explosion_sprite{ ENEMY_EXPLOSION_ASSET };
+        assets::Sprite battlestar_explosion_sprite{ BATTLESTAR_EXPLOSION_ASSET };
+        assets::Sprite volatile_explosion_sprite{ VOLATILE_EXPLOSION_ASSET };
+        assets::Sprite asteroid_explosion_sprite{ ASTEROID_EXPLOSION_ASSET };
         std::vector<Particle> particles{ };
+        std::vector<AnimatedExplosion> explosions{ };
         std::vector<FloatingText> texts{ };
 };
 

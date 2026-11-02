@@ -2,6 +2,22 @@
 
 namespace asteroides {
 
+const assets::Sprite& ParticleSystem::_get_explosion_sprite(ExplosionType type) const noexcept {
+    switch (type) {
+        case ExplosionType::Player:
+            return player_explosion_sprite;
+        case ExplosionType::Battlestar:
+            return battlestar_explosion_sprite;
+        case ExplosionType::Volatile:
+            return volatile_explosion_sprite;
+        case ExplosionType::Asteroid:
+            return asteroid_explosion_sprite;
+        case ExplosionType::Enemy:
+        default:
+            return enemy_explosion_sprite;
+    }
+}
+
 void ParticleSystem::emit(Vector2 origin, const ParticleEffect& effect, Vector2 inherited_vel) noexcept {
     const u32 count{ Random::uint(effect.count_min, effect.count_max) };
     const f32 half_spread{ effect.spread_deg * 0.5f };
@@ -16,20 +32,39 @@ void ParticleSystem::emit(Vector2 origin, const ParticleEffect& effect, Vector2 
         const f32 speed{ Random::real(effect.speed_min, effect.speed_max) };
         const f32 lifetime{ Random::real(effect.ttl_min, effect.ttl_max) };
 
-        particles.push_back(Particle{
-            .pos = Vector2Add(origin, Vector2Scale(dir, Random::real(0.0f, 4.0f))),
-            .vel = Vector2Add(Vector2Scale(dir, speed), Vector2Scale(inherited_vel, 0.35f)),
-            .size = Random::real(effect.size_min, effect.size_max),
-            .rotation = Random::real(0.0f, 360.0f),
-            .angular_vel = Random::real(-360.0f, 360.0f),
-            .ttl = lifetime,
-            .max_ttl = lifetime,
-            .drag = effect.drag,
-            .shrink = effect.shrink,
-            .start_color = effect.start_palette[Random::uint(0, palette_max)],
-            .end_color = effect.end_color
-        });
+        particles.emplace_back(
+            Vector2Add(origin, Vector2Scale(dir, Random::real(0.0f, 4.0f))),
+            Vector2Add(Vector2Scale(dir, speed), Vector2Scale(inherited_vel, 0.35f)),
+            Random::real(effect.size_min, effect.size_max),
+            Random::real(0.0f, 360.0f),
+            Random::real(-360.0f, 360.0f),
+            lifetime,
+            lifetime,
+            effect.drag,
+            effect.shrink,
+            effect.start_palette[Random::uint(0, palette_max)],
+            effect.end_color
+        );
     }
+}
+
+void ParticleSystem::emit_explosion(
+    Vector2 origin,
+    ExplosionType type,
+    f32 scale,
+    f32 duration,
+    Vector2 inherited_vel
+) noexcept {
+    explosions.emplace_back(
+        type,
+        origin,
+        Vector2Scale(inherited_vel, 0.25f),
+        scale,
+        static_cast<f32>(Random::uint(0, 3)) * 90.0f,
+        0.0f,
+        std::fmaxf(0.12f, duration),
+        0u
+    );
 }
 
 void ParticleSystem::emit_text(Vector2 origin, std::string_view message, Color color, i32 font_size) noexcept {
@@ -44,7 +79,7 @@ void ParticleSystem::emit_text(Vector2 origin, std::string_view message, Color c
     const u64 copy_len{ std::min<u64>(static_cast<u64>(message.size()), ft.text.size() - 1) };
     std::memcpy(ft.text.data(), message.data(), copy_len);
     ft.text[copy_len] = '\0';
-    texts.push_back(ft);
+    texts.emplace_back(std::move(ft));
 }
 
 void ParticleSystem::update(f32 dt) noexcept {
@@ -59,6 +94,18 @@ void ParticleSystem::update(f32 dt) noexcept {
         return p.ttl <= 0.0f;
     });
 
+    for (AnimatedExplosion& ex : explosions) {
+        ex.pos = Vector2Add(ex.pos, Vector2Scale(ex.vel, dt));
+        ex.vel = Vector2Scale(ex.vel, std::fmaxf(0.0f, 1.0f - 2.2f * dt));
+        ex.elapsed += dt;
+        const f32 progress{ std::clamp(ex.elapsed / ex.duration, 0.0f, 0.999f) };
+        ex.frame_index = static_cast<u32>(progress * static_cast<f32>(EXPLOSION_FRAME_COUNT));
+    }
+
+    std::erase_if(explosions, [](const AnimatedExplosion& ex) noexcept {
+        return ex.elapsed >= ex.duration;
+    });
+
     for (FloatingText& ft : texts) {
         ft.pos = Vector2Add(ft.pos, Vector2Scale(ft.vel, dt));
         ft.vel = Vector2Scale(ft.vel, std::fmaxf(0.0f, 1.0f - 1.8f * dt));
@@ -71,6 +118,18 @@ void ParticleSystem::update(f32 dt) noexcept {
 }
 
 void ParticleSystem::draw() const noexcept {
+    for (const AnimatedExplosion& ex : explosions) {
+        const assets::Sprite& sp{ _get_explosion_sprite(ex.type) };
+        if (!sp.is_valid()) continue;
+        const Rectangle src{
+            static_cast<f32>(ex.frame_index) * EXPLOSION_FRAME_SIZE,
+            0.0f,
+            EXPLOSION_FRAME_SIZE,
+            EXPLOSION_FRAME_SIZE
+        };
+        sp.draw(ex.pos, src, ex.rotation, ex.scale, WHITE);
+    }
+
     for (const Particle& p : particles) {
         const f32 t{ std::fmaxf(0.0f, std::fminf(1.0f, p.ttl / p.max_ttl)) };
         const f32 progress{ 1.0f - t };
@@ -102,6 +161,7 @@ void ParticleSystem::draw() const noexcept {
 
 void ParticleSystem::clear() noexcept {
     particles.clear();
+    explosions.clear();
     texts.clear();
 }
 

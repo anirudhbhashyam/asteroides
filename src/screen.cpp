@@ -62,8 +62,7 @@ ScreenAction ScreenManager::update(
     bool player_alive,
     LevelManager& levels
 ) noexcept {
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
-    pulse_timer = std::fmodf(pulse_timer + 3.5f * dt, two_pi);
+    pulse_timer = std::fmodf(pulse_timer + 3.5f * dt, TWO_PI);
 
     switch (state) {
         case ScreenState::Start: {

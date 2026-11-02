@@ -7,7 +7,6 @@ World::World(Vector2 initial_target, u64 star_count) {
 
     const f32 w{ static_cast<f32>(GetScreenWidth()) };
     const f32 h{ static_cast<f32>(GetScreenHeight()) };
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
 
     camera = Camera2D{
         .offset = Vector2{ w * 0.5f, h * 0.5f },
@@ -28,15 +27,15 @@ World::World(Vector2 initial_target, u64 star_count) {
         const f32 size{ (depth > 0.32f) ? 2.0f : 1.0f };
         const f32 base_alpha{ 0.25f + depth * 1.4f };
 
-        stars.push_back(Star{
-            .pos = Vector2{ Random::real(0.0f, w), Random::real(0.0f, h) },
-            .depth = depth,
-            .size = size,
-            .base_alpha = std::fminf(0.95f, base_alpha),
-            .twinkle_phase = Random::real(0.0f, two_pi),
-            .twinkle_speed = Random::real(1.5f, 4.5f),
-            .color = palette[Random::uint(0, static_cast<u32>(palette.size() - 1))]
-        });
+        stars.emplace_back(
+            Vector2{ Random::real(0.0f, w), Random::real(0.0f, h) },
+            depth,
+            size,
+            std::fminf(0.95f, base_alpha),
+            Random::real(0.0f, TWO_PI),
+            Random::real(1.5f, 4.5f),
+            palette[Random::uint(0, static_cast<u32>(palette.size() - 1))]
+        );
     }
 }
 
@@ -62,7 +61,6 @@ void World::update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept {
     const f32 w{ static_cast<f32>(GetScreenWidth()) };
     const f32 h{ static_cast<f32>(GetScreenHeight()) };
     const Vector2 base_vel{ Vector2Subtract(ambient_drift, target_vel) };
-    constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
 
     for (Star& star : stars) {
         star.pos.x += base_vel.x * star.depth * dt;
@@ -74,7 +72,7 @@ void World::update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept {
         if (star.pos.y < 0.0f) star.pos.y += h;
         else if (star.pos.y >= h) star.pos.y -= h;
 
-        star.twinkle_phase = std::fmodf(star.twinkle_phase + star.twinkle_speed * dt, two_pi);
+        star.twinkle_phase = std::fmodf(star.twinkle_phase + star.twinkle_speed * dt, TWO_PI);
     }
 }
 

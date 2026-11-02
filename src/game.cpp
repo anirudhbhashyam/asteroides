@@ -126,9 +126,16 @@ void Game::_emit_thruster_trails() noexcept {
 void Game::_process_events() noexcept {
     for (const ShatterEvent& ev : asteroids.consume_shatter_events()) {
         particles.emit(ev.pos, Asteroid::SHATTER_DUST_EFFECT);
+        particles.emit_explosion(
+            ev.pos,
+            ExplosionType::Asteroid,
+            std::fmaxf(1.8f, ev.scale * 1.15f),
+            0.38f
+        );
 
         if (ev.variant == AsteroidVariant::Volatile) {
             particles.emit(ev.pos, EnemySpaceship::EXPLOSION_EFFECT);
+            particles.emit_explosion(ev.pos, ExplosionType::Volatile, 3.6f, 0.55f);
             world.add_trauma(0.35f);
             particles.emit_text(ev.pos, "VOLATILE BLAST!", hex_to_color(0xf97316ff), 15);
 
@@ -141,7 +148,15 @@ void Game::_process_events() noexcept {
                     const Vector2 push{ Vector2Normalize(Vector2Subtract(enemy.get_pos(), ev.pos)) };
                     enemy.apply_impulse(Vector2Scale(push, 260.0f));
                     if (!enemy.is_alive()) {
+                        const bool is_bs{ enemy.get_archetype() == EnemyArchetype::Battlestar };
                         particles.emit(enemy.get_pos(), EnemySpaceship::EXPLOSION_EFFECT, enemy.get_vel());
+                        particles.emit_explosion(
+                            enemy.get_pos(),
+                            is_bs ? ExplosionType::Battlestar : ExplosionType::Enemy,
+                            is_bs ? 4.2f : 2.6f,
+                            is_bs ? 0.65f : 0.44f,
+                            enemy.get_vel()
+                        );
                         const u64 aoe_pts{ progression.add_kill_score(300) };
                         char buf[24]{ };
                         std::snprintf(buf, sizeof(buf), "AOE +%u", static_cast<u32>(aoe_pts));
@@ -221,10 +236,12 @@ void Game::_handle_combat(Engine& engine, Vector2 view_center) noexcept {
                     particles.emit(enemy.get_pos(), EnemySpaceship::EXPLOSION_EFFECT, enemy.get_vel());
                     if (is_battlestar) {
                         particles.emit(enemy.get_pos(), Spaceship::EXPLOSION_EFFECT, enemy.get_vel());
+                        particles.emit_explosion(enemy.get_pos(), ExplosionType::Battlestar, 4.2f, 0.65f, enemy.get_vel());
                         powerups.spawn_guaranteed(enemy.get_pos());
                         world.add_trauma(0.55f);
                         engine.trigger_hitstop(0.045f);
                     } else {
+                        particles.emit_explosion(enemy.get_pos(), ExplosionType::Enemy, 2.6f, 0.44f, enemy.get_vel());
                         powerups.try_spawn(enemy.get_pos());
                         world.add_trauma(0.32f);
                         engine.trigger_hitstop(0.028f);
@@ -283,6 +300,7 @@ void Game::_handle_combat(Engine& engine, Vector2 view_center) noexcept {
 
                         if (!spaceship.is_alive()) {
                             particles.emit(player_pos, Spaceship::EXPLOSION_EFFECT, spaceship.get_vel());
+                            particles.emit_explosion(player_pos, ExplosionType::Player, 3.0f, 0.52f, spaceship.get_vel());
                             world.add_trauma(0.65f);
                         }
                         break;
@@ -323,10 +341,19 @@ void Game::_handle_combat(Engine& engine, Vector2 view_center) noexcept {
 
             if (!spaceship.is_alive()) {
                 particles.emit(player_pos, Spaceship::EXPLOSION_EFFECT, spaceship.get_vel());
+                particles.emit_explosion(player_pos, ExplosionType::Player, 3.0f, 0.52f, spaceship.get_vel());
                 world.add_trauma(0.65f);
             }
             if (!enemy.is_alive()) {
+                const bool is_bs{ enemy.get_archetype() == EnemyArchetype::Battlestar };
                 particles.emit(enemy.get_pos(), EnemySpaceship::EXPLOSION_EFFECT, enemy.get_vel());
+                particles.emit_explosion(
+                    enemy.get_pos(),
+                    is_bs ? ExplosionType::Battlestar : ExplosionType::Enemy,
+                    is_bs ? 4.2f : 2.6f,
+                    is_bs ? 0.65f : 0.44f,
+                    enemy.get_vel()
+                );
                 const u64 pts{ progression.add_kill_score(250) };
                 char buf[24]{ };
                 std::snprintf(buf, sizeof(buf), "+%u", static_cast<u32>(pts));
@@ -346,7 +373,15 @@ void Game::_handle_combat(Engine& engine, Vector2 view_center) noexcept {
                         ast_it->get_variant()
                     );
                     if (!enemy.is_alive()) {
+                        const bool is_bs{ enemy.get_archetype() == EnemyArchetype::Battlestar };
                         particles.emit(enemy.get_pos(), EnemySpaceship::EXPLOSION_EFFECT, enemy.get_vel());
+                        particles.emit_explosion(
+                            enemy.get_pos(),
+                            is_bs ? ExplosionType::Battlestar : ExplosionType::Enemy,
+                            is_bs ? 4.2f : 2.6f,
+                            is_bs ? 0.65f : 0.44f,
+                            enemy.get_vel()
+                        );
                         const u64 crash_pts{ progression.add_kill_score(150) };
                         char buf[24]{ };
                         std::snprintf(buf, sizeof(buf), "CRASH +%u", static_cast<u32>(crash_pts));
@@ -385,6 +420,7 @@ void Game::_handle_combat(Engine& engine, Vector2 view_center) noexcept {
                 }
                 if (!spaceship.is_alive()) {
                     particles.emit(player_pos, Spaceship::EXPLOSION_EFFECT, spaceship.get_vel());
+                    particles.emit_explosion(player_pos, ExplosionType::Player, 3.0f, 0.52f, spaceship.get_vel());
                     world.add_trauma(0.65f);
                 }
                 asteroids.spawn_explosion(ast_it->get_pos(), ast_it->get_scale(), false);

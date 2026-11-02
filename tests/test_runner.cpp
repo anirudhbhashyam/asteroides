@@ -475,8 +475,28 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
             const auto& asts{ game.get_asteroids().get_asteroids() };
             const auto& frags{ game.get_asteroids().get_fragments() };
 
-            if (!asts.empty()) {
-                _pass_assertion(0);
+            if (!asts.empty() && !(step_flags & (1u << 9))) {
+                const auto px{ Asteroid::generate_pixels(AsteroidVariant::Standard) };
+                bool rim_closed{ true };
+                for (i32 y{ 1 }; y < Asteroid::SPRITE_SIZE - 1 && rim_closed; ++y) {
+                    for (i32 x{ 1 }; x < Asteroid::SPRITE_SIZE - 1; ++x) {
+                        const Color c{ px[static_cast<u64>(y * Asteroid::SPRITE_SIZE + x)] };
+                        if (c.a != 0 && c.r == 0 && c.g == 0 && c.b == 0) {
+                            for (i32 dy{ -1 }; dy <= 1; ++dy) {
+                                for (i32 dx{ -1 }; dx <= 1; ++dx) {
+                                    const Color n{ px[static_cast<u64>((y + dy) * Asteroid::SPRITE_SIZE + (x + dx))] };
+                                    if (n.a == 0) {
+                                        rim_closed = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                step_flags |= (1u << 9);
+                if (rim_closed) {
+                    _pass_assertion(0);
+                }
             }
             if (step_flags & (1u << 8)) {
                 _pass_assertion(1);
@@ -485,7 +505,9 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
             if (t >= 0.95f && t < 1.8f) {
                 synth.fire_down = true;
             }
-            if (frags.size() >= 3) {
+            if (frags.size() >= 3 &&
+                game.get_particles().has_valid_explosion_sprites() &&
+                game.get_particles().explosion_count() >= 1) {
                 _pass_assertion(2);
                 step_flags |= 1u;
             }
@@ -555,7 +577,8 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
                 }
             } else {
                 // Enemy was destroyed by player bolts
-                if (game.get_particles().count() >= 20) {
+                if (game.get_particles().count() >= 20 &&
+                    game.get_particles().explosion_count() >= 1) {
                     _pass_assertion(2);
                 }
                 _pass_assertion(3);
@@ -579,7 +602,10 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
             if (t >= 1.0f && !(step_flags & 2u)) {
                 ship.take_damage(50, false);
                 game.get_particles().emit(ship.get_pos(), Spaceship::EXPLOSION_EFFECT, ship.get_vel());
-                if (!ship.is_alive() && game.get_particles().count() >= 30) {
+                game.get_particles().emit_explosion(ship.get_pos(), ExplosionType::Player, 3.0f, 0.52f, ship.get_vel());
+                if (!ship.is_alive() &&
+                    game.get_particles().count() >= 30 &&
+                    game.get_particles().explosion_count() >= 1) {
                     _pass_assertion(1);
                 }
                 step_flags |= 2u;
@@ -730,7 +756,9 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
             } else {
                 // Battlestar destroyed!
                 _pass_assertion(2);
-                if (game.get_progression().score >= 1000 && !game.get_powerups().get_powerups().empty()) {
+                if (game.get_progression().score >= 1000 &&
+                    !game.get_powerups().get_powerups().empty() &&
+                    game.get_particles().explosion_count() >= 1) {
                     _pass_assertion(3);
                 }
             }
