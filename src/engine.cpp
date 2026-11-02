@@ -35,13 +35,18 @@ Engine::Engine(const EngineConfig& config) noexcept
     : debug_enabled{ config.start_with_debug } {
     Random::init(config.rng_seed);
     SetTraceLogLevel(LOG_WARNING);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(config.window_width, config.window_height, config.title);
+    SetWindowMinSize(480, 270);
     SetExitKey(KEY_NULL);
+    target = LoadRenderTexture(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
     SetTargetFPS(config.target_fps);
 }
 
 Engine::~Engine() noexcept {
     if (IsWindowReady()) {
+        UnloadRenderTexture(target);
         CloseWindow();
     }
 }
@@ -89,12 +94,47 @@ void Engine::begin_frame(std::optional<f32> fixed_dt) noexcept {
         debug_enabled = !debug_enabled;
     }
 
+    if (IsKeyPressed(KEY_F11) || IsKeyPressed(KEY_F)) {
+        toggle_fullscreen();
+    }
+
     BeginDrawing();
+    BeginTextureMode(target);
     ClearBackground(BLACK);
 }
 
 void Engine::end_frame() const noexcept {
+    EndTextureMode();
+
+    const f32 win_w{ static_cast<f32>(GetScreenWidth()) };
+    const f32 win_h{ static_cast<f32>(GetScreenHeight()) };
+    const f32 scale{ std::fminf(win_w / static_cast<f32>(VIRTUAL_WIDTH), win_h / static_cast<f32>(VIRTUAL_HEIGHT)) };
+    const f32 dst_w{ static_cast<f32>(VIRTUAL_WIDTH) * scale };
+    const f32 dst_h{ static_cast<f32>(VIRTUAL_HEIGHT) * scale };
+
+    ClearBackground(BLACK);
+    DrawTexturePro(
+        target.texture,
+        Rectangle{ 0.0f, 0.0f, static_cast<f32>(VIRTUAL_WIDTH), -static_cast<f32>(VIRTUAL_HEIGHT) },
+        Rectangle{ (win_w - dst_w) * 0.5f, (win_h - dst_h) * 0.5f, dst_w, dst_h },
+        Vector2{ 0.0f, 0.0f }, 0.0f, WHITE
+    );
     EndDrawing();
+}
+
+void Engine::toggle_fullscreen() noexcept {
+#if defined(PLATFORM_WEB)
+    // Handled in app/bootstrap.js: the browser only allows fullscreen from a real user gesture.
+#else
+    if (IsWindowFullscreen()) {
+        ToggleFullscreen();
+        SetWindowSize(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    } else {
+        const i32 monitor{ GetCurrentMonitor() };
+        SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+        ToggleFullscreen();
+    }
+#endif
 }
 
 void Engine::draw_debug_circle(Vector2 center, f32 radius, Color color) const noexcept {
@@ -126,7 +166,7 @@ void Engine::draw_debug_line(Vector2 from, Vector2 to, Color color) const noexce
 void Engine::draw_telemetry(const TelemetryData& data) const noexcept {
     if (!debug_enabled) return;
 
-    const i32 screen_w{ GetScreenWidth() };
+    const i32 screen_w{ VIRTUAL_WIDTH };
     constexpr i32 panel_w{ 252 };
     constexpr i32 panel_h{ 226 };
     const i32 panel_x{ screen_w - panel_w - 12 };

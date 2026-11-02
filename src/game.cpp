@@ -209,8 +209,8 @@ void Game::_process_events() noexcept {
 }
 
 void Game::_handle_combat(Engine& engine, Vector2 view_center) noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     constexpr f32 bolt_radius{ 4.0f };
 
     auto& player_bolts{ spaceship.get_blaster().get_bolts() };

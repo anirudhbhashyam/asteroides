@@ -165,7 +165,7 @@ struct Spaceship {
         assets::Sprite sprite{ ASSET_NAME };
         assets::Sprite flame_sprite{ FLAME_ASSET_NAME };
         Blaster blaster{ };
-        Vector2 pos{ static_cast<f32>(GetScreenWidth() / 2), static_cast<f32>(GetScreenHeight() / 2) };
+        Vector2 pos{ static_cast<f32>(VIRTUAL_WIDTH / 2), static_cast<f32>(VIRTUAL_HEIGHT / 2) };
         Vector2 vel{ Vector2Zero() };
         Vector2 acc{ 500.0f, 500.0f };
         f32 rotation{ 0.0f };

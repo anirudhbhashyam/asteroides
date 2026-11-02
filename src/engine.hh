@@ -24,6 +24,11 @@ using u64 = uint64_t;
 using f32 = float;
 using f64 = double;
 
+// Logical resolution the game is authored for. The window can be any size or fullscreen;
+// the frame is rendered at this size and letterboxed to fit.
+inline constexpr i32 VIRTUAL_WIDTH{ 1920 };
+inline constexpr i32 VIRTUAL_HEIGHT{ 1080 };
+
 namespace asteroides {
 
 inline constexpr f32 TWO_PI{ 2.0f * std::numbers::pi_v<f32> };
@@ -158,8 +163,8 @@ struct Engine {
         [[nodiscard]] bool is_debug_enabled() const noexcept { return debug_enabled; }
         [[nodiscard]] const TimeState& get_time() const noexcept { return time; }
         [[nodiscard]] const InputState& get_input() const noexcept { return input; }
-        [[nodiscard]] i32 get_width() const noexcept { return GetScreenWidth(); }
-        [[nodiscard]] i32 get_height() const noexcept { return GetScreenHeight(); }
+        [[nodiscard]] i32 get_width() const noexcept { return VIRTUAL_WIDTH; }
+        [[nodiscard]] i32 get_height() const noexcept { return VIRTUAL_HEIGHT; }
 
         void draw_debug_circle(Vector2 center, f32 radius, Color color) const noexcept;
         void draw_debug_kinematics(Vector2 pos, Vector2 vel, f32 rotation_deg, f32 radius) const noexcept;
@@ -167,10 +172,13 @@ struct Engine {
         void draw_telemetry(const TelemetryData& data) const noexcept;
 
     private:
+        void toggle_fullscreen() noexcept;
+
         TimeState time{ };
         InputState input{ };
         std::optional<InputState> pending_input_override{ std::nullopt };
         bool debug_enabled{ false };
+        RenderTexture2D target{ };
 };
 
 } // namespace asteroides

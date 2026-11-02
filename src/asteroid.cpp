@@ -361,8 +361,8 @@ void AsteroidField::reset(Vector2 initial_center) noexcept {
     fragments.clear();
     shatter_events.clear();
     asteroids.reserve(target_count);
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     for (u64 i{ 0 }; i < target_count; ++i) {
         asteroids.emplace_back(Asteroid::spawn_from_edge(initial_center, w, h));
     }
@@ -384,8 +384,8 @@ void AsteroidField::spawn_custom(
 }
 
 void AsteroidField::update(f32 dt, Vector2 view_center, Blaster& blaster, PowerupField& powerups) noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     while (static_cast<u64>(asteroids.size()) < target_count) {
         asteroids.emplace_back(Asteroid::spawn_from_edge(view_center, w, h));
     }

@@ -287,8 +287,8 @@ bool EnemySpaceship::collides_with(Vector2 point, f32 point_radius) const noexce
 }
 
 void EnemyField::update(f32 dt, Vector2 player_pos, bool player_alive, Vector2 view_center) noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
 
     if (auto_spawn && player_alive && static_cast<u64>(enemies.size()) < max_enemies) {
         spawn_timer -= dt;

@@ -5,8 +5,8 @@ namespace asteroides {
 World::World(Vector2 initial_target, u64 star_count) {
     stars.reserve(star_count);
 
-    const f32 w{ static_cast<f32>(GetScreenWidth()) };
-    const f32 h{ static_cast<f32>(GetScreenHeight()) };
+    const f32 w{ static_cast<f32>(VIRTUAL_WIDTH) };
+    const f32 h{ static_cast<f32>(VIRTUAL_HEIGHT) };
 
     camera = Camera2D{
         .offset = Vector2{ w * 0.5f, h * 0.5f },
@@ -58,8 +58,8 @@ void World::update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept {
         camera.target = Vector2Lerp(camera.target, target_pos, lerp_factor);
     }
 
-    const f32 w{ static_cast<f32>(GetScreenWidth()) };
-    const f32 h{ static_cast<f32>(GetScreenHeight()) };
+    const f32 w{ static_cast<f32>(VIRTUAL_WIDTH) };
+    const f32 h{ static_cast<f32>(VIRTUAL_HEIGHT) };
     camera.offset = Vector2{ w * 0.5f, h * 0.5f };
     const Vector2 base_vel{ Vector2Subtract(ambient_drift, target_vel) };
 

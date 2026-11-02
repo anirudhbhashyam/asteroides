@@ -67,8 +67,8 @@ void Blaster::update(f32 dt, Vector2 view_center) noexcept {
         cooldown_timer = std::fmaxf(0.0f, cooldown_timer - dt);
     }
 
-    const f32 half_w{ static_cast<f32>(GetScreenWidth()) * 0.5f };
-    const f32 half_h{ static_cast<f32>(GetScreenHeight()) * 0.5f };
+    const f32 half_w{ static_cast<f32>(VIRTUAL_WIDTH) * 0.5f };
+    const f32 half_h{ static_cast<f32>(VIRTUAL_HEIGHT) * 0.5f };
     constexpr f32 margin{ 96.0f };
 
     for (Bolt& bolt : bolts) {

@@ -189,7 +189,7 @@ void ScreenManager::draw_hud(
     const AsteroidField& asteroids,
     Vector2 view_center
 ) const noexcept {
-    const i32 w{ GetScreenWidth() };
+    const i32 w{ VIRTUAL_WIDTH };
 
     // 1. Top-Left Hull Health Bar + Active Powerup Timers
     constexpr i32 bar_x{ 20 };
@@ -382,8 +382,8 @@ void ScreenManager::_draw_edge_indicators(
     const PowerupField& powerups,
     Vector2 view_center
 ) const noexcept {
-    const f32 w{ static_cast<f32>(GetScreenWidth()) };
-    const f32 h{ static_cast<f32>(GetScreenHeight()) };
+    const f32 w{ static_cast<f32>(VIRTUAL_WIDTH) };
+    const f32 h{ static_cast<f32>(VIRTUAL_HEIGHT) };
     const f32 half_w{ w * 0.5f };
     const f32 half_h{ h * 0.5f };
     constexpr f32 margin{ 22.0f };
@@ -463,8 +463,8 @@ void ScreenManager::_draw_radar(
     const AsteroidField& asteroids,
     Vector2 view_center
 ) const noexcept {
-    const f32 w{ static_cast<f32>(GetScreenWidth()) };
-    const f32 h{ static_cast<f32>(GetScreenHeight()) };
+    const f32 w{ static_cast<f32>(VIRTUAL_WIDTH) };
+    const f32 h{ static_cast<f32>(VIRTUAL_HEIGHT) };
     constexpr f32 radar_radius{ 48.0f };
     constexpr f32 world_range{ 1050.0f };
     constexpr f32 scale{ radar_radius / world_range };
@@ -602,7 +602,7 @@ void ScreenManager::draw_overlay(
 }
 
 void ScreenManager::_draw_centered_text(const char* text, i32 y, i32 font_size, Color color) const noexcept {
-    const i32 w{ GetScreenWidth() };
+    const i32 w{ VIRTUAL_WIDTH };
     const i32 text_w{ MeasureText(text, font_size) };
     DrawText(text, (w - text_w) / 2, y, font_size, color);
 }
@@ -611,8 +611,8 @@ void ScreenManager::_draw_start(
     const ProgressionState& progression,
     const LevelManager& levels
 ) const noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     DrawRectangle(0, 0, w, h, Fade(BLACK, 0.50f));
 
     const f32 pulse_alpha{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer)) };
@@ -666,8 +666,8 @@ void ScreenManager::_draw_start(
 }
 
 void ScreenManager::_draw_level_select(const LevelManager& levels) const noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     DrawRectangle(0, 0, w, h, Fade(BLACK, 0.65f));
 
     _draw_centered_text("SELECT CAMPAIGN LEVEL", 48, 34, hex_to_color(0xfacc15ff));
@@ -758,8 +758,8 @@ void ScreenManager::_draw_level_select(const LevelManager& levels) const noexcep
 }
 
 void ScreenManager::_draw_paused(const LevelManager& levels) const noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     DrawRectangle(0, 0, w, h, Fade(BLACK, 0.55f));
 
     _draw_centered_text("PAUSED", h / 2 - 80, 48, hex_to_color(0x38bdf8ff));
@@ -777,8 +777,8 @@ void ScreenManager::_draw_level_complete(
     const ProgressionState& progression,
     const LevelManager& levels
 ) const noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     DrawRectangle(0, 0, w, h, Fade(BLACK, 0.60f));
 
     const f32 pulse_alpha{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer)) };
@@ -821,8 +821,8 @@ void ScreenManager::_draw_game_over(
     const ProgressionState& progression,
     const LevelManager& levels
 ) const noexcept {
-    const i32 w{ GetScreenWidth() };
-    const i32 h{ GetScreenHeight() };
+    const i32 w{ VIRTUAL_WIDTH };
+    const i32 h{ VIRTUAL_HEIGHT };
     DrawRectangle(0, 0, w, h, Fade(BLACK, 0.55f));
 
     const f32 pulse_alpha{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer)) };

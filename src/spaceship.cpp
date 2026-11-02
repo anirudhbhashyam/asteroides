@@ -150,8 +150,8 @@ void Spaceship::refund_dash_cooldown(f32 fraction) noexcept {
 
 void Spaceship::reset() noexcept {
     pos = Vector2{
-        static_cast<f32>(GetScreenWidth() / 2),
-        static_cast<f32>(GetScreenHeight() / 2)
+        static_cast<f32>(VIRTUAL_WIDTH / 2),
+        static_cast<f32>(VIRTUAL_HEIGHT / 2)
     };
     vel = Vector2Zero();
     rotation = 0.0f;

@@ -12,6 +12,21 @@
         e.preventDefault();
     }, false);
 
+    function toggleFullscreen() {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            document.documentElement.requestFullscreen().catch(function () {});
+        }
+    }
+
+    window.addEventListener("keydown", function (e) {
+        if ((e.code === "KeyF" || e.code === "F11") && !e.repeat) {
+            e.preventDefault();
+            toggleFullscreen();
+        }
+    }, { passive: false });
+
     window.addEventListener("keydown", function (e) {
         if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Tab"].includes(e.code)) {
             e.preventDefault();

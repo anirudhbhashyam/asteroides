@@ -24,20 +24,20 @@
             user-select: none;
         }
         #status {
-            margin-bottom: 8px;
+            position: absolute;
+            top: 8px;
+            left: 12px;
             font-size: 13px;
             color: #38bdf8;
-            min-height: 18px;
+            z-index: 1;
+            pointer-events: none;
         }
+        /* raylib resizes the canvas buffer to the window; the game letterboxes 16:9 itself. */
         canvas.emscripten {
-            flex: none;
-            width: min(96vw, calc((100vh - 64px) * 16 / 9));
-            height: auto;
-            aspect-ratio: 16 / 9;
-            border: 2px solid #1e293b;
-            border-radius: 6px;
+            width: 100vw;
+            height: 100vh;
             background-color: #000000;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75);
+            border: 0;
             outline: none;
             display: block;
         }

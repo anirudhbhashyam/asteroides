@@ -7,8 +7,8 @@ void DeathZoneState::reset() noexcept {
     cause = DeathZoneCause::None;
     center = Vector2Zero();
     half_extents = Vector2{
-        static_cast<f32>(GetScreenWidth()) * 0.5f,
-        static_cast<f32>(GetScreenHeight()) * 0.5f
+        static_cast<f32>(VIRTUAL_WIDTH) * 0.5f,
+        static_cast<f32>(VIRTUAL_HEIGHT) * 0.5f
     };
     timer = 0.0f;
     max_duration = 12.0f;
@@ -344,8 +344,8 @@ void LevelManager::update(
     Engine& engine,
     u64& score_out
 ) noexcept {
-    const f32 screen_w{ static_cast<f32>(GetScreenWidth()) };
-    const f32 screen_h{ static_cast<f32>(GetScreenHeight()) };
+    const f32 screen_w{ static_cast<f32>(VIRTUAL_WIDTH) };
+    const f32 screen_h{ static_cast<f32>(VIRTUAL_HEIGHT) };
     const Vector2 player_pos{ spaceship.get_pos() };
     const f32 player_radius{ spaceship.get_radius() };
 
