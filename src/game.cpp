@@ -16,6 +16,7 @@ void Game::reset() noexcept {
     asteroids.set_target_count(base_asteroid_count);
     asteroids.reset(spaceship.get_pos());
     enemies.reset();
+    levels.setup_run(spaceship.get_pos(), asteroids, enemies);
 }
 
 void Game::update(Engine& engine) noexcept {
@@ -23,9 +24,10 @@ void Game::update(Engine& engine) noexcept {
     const f32 raw_dt{ engine.get_time().raw_dt };
     const InputState& input{ engine.get_input() };
 
-    const ScreenAction action{ screens.update(raw_dt, input, spaceship.is_alive()) };
+    const ScreenAction action{ screens.update(raw_dt, input, spaceship.is_alive(), levels) };
     if (action == ScreenAction::StartGame ||
         action == ScreenAction::RestartGame ||
+        action == ScreenAction::NextLevel ||
         action == ScreenAction::ReturnToTitle) {
         reset();
         return;
@@ -48,11 +50,14 @@ void Game::update(Engine& engine) noexcept {
             world.add_trauma(0.11f);
         }
 
-        if (spaceship.is_alive() && progression.update(dt)) {
-            const u32 wave{ progression.current_wave };
-            asteroids.set_target_count(base_asteroid_count + static_cast<u64>((wave - 1) * 2));
-            enemies.set_max_enemies(EnemyField::DEFAULT_MAX_ENEMIES + static_cast<u64>(wave - 1));
-            enemies.set_spawn_interval(5.0f - 0.35f * static_cast<f32>(wave - 1));
+        if (spaceship.is_alive()) {
+            const bool wave_advanced{ progression.update(dt) };
+            if (levels.get_mode() == GameMode::Freestyle && wave_advanced) {
+                const u32 wave{ progression.current_wave };
+                asteroids.set_target_count(base_asteroid_count + static_cast<u64>((wave - 1) * 2));
+                enemies.set_max_enemies(EnemyField::DEFAULT_MAX_ENEMIES + static_cast<u64>(wave - 1));
+                enemies.set_spawn_interval(5.0f - 0.35f * static_cast<f32>(wave - 1));
+            }
         }
 
         _emit_thruster_trails();
@@ -75,6 +80,21 @@ void Game::update(Engine& engine) noexcept {
         powerups.update(dt, spaceship);
         _process_events();
         _handle_combat(engine, view_center);
+
+        u64 obj_score{ 0 };
+        levels.update(dt, spaceship, enemies, particles, world, engine, obj_score);
+        if (obj_score > 0) {
+            progression.score += obj_score;
+            if (progression.score > progression.high_score) {
+                progression.high_score = progression.score;
+            }
+        }
+        if (levels.get_death_zone().enforce_player_bounds(spaceship, particles, world, engine)) {
+            progression.on_player_damaged();
+        }
+        if (levels.consume_level_just_completed()) {
+            screens.set_state(ScreenState::LevelComplete);
+        }
     }
 }
 
@@ -140,6 +160,7 @@ void Game::_process_events() noexcept {
         }
 
         if (ev.by_player) {
+            levels.on_asteroid_shattered(ev.pos, ev.variant, true);
             world.add_trauma(0.16f);
             const u64 base_pts{ ev.variant == AsteroidVariant::GoldCore ? 150u : 50u };
             const u64 pts{ progression.add_kill_score(base_pts) };
@@ -196,6 +217,7 @@ void Game::_handle_combat(Engine& engine, Vector2 view_center) noexcept {
 
                 if (!enemy.is_alive()) {
                     const bool is_battlestar{ enemy.get_archetype() == EnemyArchetype::Battlestar };
+                    levels.on_enemy_killed(enemy.get_pos(), enemy.get_archetype(), particles);
                     particles.emit(enemy.get_pos(), EnemySpaceship::EXPLOSION_EFFECT, enemy.get_vel());
                     if (is_battlestar) {
                         particles.emit(enemy.get_pos(), Spaceship::EXPLOSION_EFFECT, enemy.get_vel());
@@ -473,6 +495,7 @@ void Game::draw(const Engine& engine) const noexcept {
             asteroids.draw();
         }
         if (has_layer(policy.draw_mask, Layer::Combat)) {
+            levels.draw_world();
             powerups.draw();
             enemies.draw();
             spaceship.draw();
@@ -487,6 +510,7 @@ void Game::draw(const Engine& engine) const noexcept {
         screens.draw_hud(
             spaceship,
             progression,
+            levels,
             enemies,
             powerups,
             asteroids,
@@ -495,7 +519,7 @@ void Game::draw(const Engine& engine) const noexcept {
     }
 
     if (has_layer(policy.draw_mask, Layer::Overlay)) {
-        screens.draw_overlay(progression);
+        screens.draw_overlay(progression, levels);
     }
 
     if (engine.is_debug_enabled()) {

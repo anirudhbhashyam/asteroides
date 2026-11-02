@@ -9,6 +9,7 @@
 #include "asteroid.hh"
 #include "enemy.hh"
 #include "engine.hh"
+#include "level.hh"
 #include "powerup.hh"
 #include "raylib.h"
 #include "raymath.h"
@@ -18,8 +19,10 @@ namespace asteroides {
 
 enum class ScreenState : u8 {
     Start = 0,
+    LevelSelect,
     Playing,
     Paused,
+    LevelComplete,
     GameOver
 };
 
@@ -28,6 +31,7 @@ enum class ScreenAction : u8 {
     StartGame,
     ResumeGame,
     RestartGame,
+    NextLevel,
     ReturnToTitle
 };
 
@@ -57,6 +61,7 @@ constexpr LayerPolicy get_layer_policy(ScreenState state) noexcept {
     using enum Layer;
     switch (state) {
         case ScreenState::Start:
+        case ScreenState::LevelSelect:
             return {
                 .update_mask = Background | Asteroids | Overlay,
                 .draw_mask   = Background | Asteroids | Overlay
@@ -71,6 +76,7 @@ constexpr LayerPolicy get_layer_policy(ScreenState state) noexcept {
                 .update_mask = Overlay,
                 .draw_mask   = Background | Asteroids | Combat | Hud | Overlay
             };
+        case ScreenState::LevelComplete:
         case ScreenState::GameOver:
             return {
                 .update_mask = Background | Asteroids | Overlay,
@@ -103,16 +109,22 @@ struct ScreenManager {
     public:
         ScreenManager() noexcept = default;
 
-        [[nodiscard]] ScreenAction update(f32 dt, const InputState& input, bool player_alive) noexcept;
+        [[nodiscard]] ScreenAction update(
+            f32 dt,
+            const InputState& input,
+            bool player_alive,
+            LevelManager& levels
+        ) noexcept;
         void draw_hud(
             const Spaceship& spaceship,
             const ProgressionState& progression,
+            const LevelManager& levels,
             const EnemyField& enemies,
             const PowerupField& powerups,
             const AsteroidField& asteroids,
             Vector2 view_center
         ) const noexcept;
-        void draw_overlay(const ProgressionState& progression) const noexcept;
+        void draw_overlay(const ProgressionState& progression, const LevelManager& levels) const noexcept;
 
         [[nodiscard]] ScreenState get_state() const noexcept { return state; }
         [[nodiscard]] std::string_view get_state_name() const noexcept;
@@ -121,16 +133,20 @@ struct ScreenManager {
 
     private:
         void _draw_centered_text(const char* text, i32 y, i32 font_size, Color color) const noexcept;
-        void _draw_start(const ProgressionState& progression) const noexcept;
-        void _draw_paused() const noexcept;
-        void _draw_game_over(const ProgressionState& progression) const noexcept;
+        void _draw_start(const ProgressionState& progression, const LevelManager& levels) const noexcept;
+        void _draw_level_select(const LevelManager& levels) const noexcept;
+        void _draw_paused(const LevelManager& levels) const noexcept;
+        void _draw_level_complete(const ProgressionState& progression, const LevelManager& levels) const noexcept;
+        void _draw_game_over(const ProgressionState& progression, const LevelManager& levels) const noexcept;
         void _draw_edge_indicators(
+            const LevelManager& levels,
             const EnemyField& enemies,
             const PowerupField& powerups,
             Vector2 view_center
         ) const noexcept;
         void _draw_radar(
             const Spaceship& spaceship,
+            const LevelManager& levels,
             const EnemyField& enemies,
             const PowerupField& powerups,
             const AsteroidField& asteroids,

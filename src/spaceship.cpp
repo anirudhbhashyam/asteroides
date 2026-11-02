@@ -69,41 +69,41 @@ void Spaceship::draw() const noexcept {
         DrawCircleV(pos, radius, color);
     }
 
-    if (is_shielded()) {
-        const f32 shield_remaining{ get_powerup_remaining(PowerupType::Shield) };
-        const f32 pulse{ std::sinf(halo_pulse_timer) };
-        const f32 halo_radius{ get_radius() + 8.0f + 1.5f * pulse };
-        const f32 expiry_fade{
-            shield_remaining < 2.0f
-                ? (0.45f + 0.55f * (0.5f + 0.5f * std::sinf(halo_pulse_timer * 3.0f)))
-                : 1.0f
-        };
+    if (!is_shielded()) return;
 
-        DrawCircleGradient(
-            pos,
-            halo_radius + 3.0f,
-            Fade(hex_to_color(0x5eead4ff), 0.06f * expiry_fade),
-            Fade(hex_to_color(0x38bdf8ff), 0.28f * expiry_fade)
-        );
-        DrawRing(
-            pos,
-            halo_radius - 2.5f,
-            halo_radius + 1.0f,
-            0.0f,
-            360.0f,
-            40,
-            Fade(hex_to_color(0x5eead4ff), 0.85f * expiry_fade)
-        );
-        DrawRing(
-            pos,
-            halo_radius + 1.0f,
-            halo_radius + 3.0f,
-            0.0f,
-            360.0f,
-            40,
-            Fade(hex_to_color(0x60a5faff), 0.45f * expiry_fade)
-        );
-    }
+    const f32 shield_remaining{ get_powerup_remaining(PowerupType::Shield) };
+    const f32 pulse{ std::sinf(halo_pulse_timer) };
+    const f32 halo_radius{ get_radius() + 8.0f + 1.5f * pulse };
+    const f32 expiry_fade{
+        shield_remaining < 2.0f
+            ? (0.45f + 0.55f * (0.5f + 0.5f * std::sinf(halo_pulse_timer * 3.0f)))
+            : 1.0f
+    };
+
+    DrawCircleGradient(
+        pos,
+        halo_radius + 3.0f,
+        Fade(hex_to_color(0x5eead4ff), 0.06f * expiry_fade),
+        Fade(hex_to_color(0x38bdf8ff), 0.28f * expiry_fade)
+    );
+    DrawRing(
+        pos,
+        halo_radius - 2.5f,
+        halo_radius + 1.0f,
+        0.0f,
+        360.0f,
+        40,
+        Fade(hex_to_color(0x5eead4ff), 0.85f * expiry_fade)
+    );
+    DrawRing(
+        pos,
+        halo_radius + 1.0f,
+        halo_radius + 3.0f,
+        0.0f,
+        360.0f,
+        40,
+        Fade(hex_to_color(0x60a5faff), 0.45f * expiry_fade)
+    );
 }
 
 void Spaceship::take_damage(i32 amount, bool grant_invulnerability) noexcept {

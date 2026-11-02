@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <numbers>
+#include <optional>
 #include <vector>
 
 #include "engine.hh"
@@ -32,6 +33,8 @@ struct World {
         void begin_camera() const noexcept;
         void end_camera() const noexcept;
         void reset_camera(Vector2 target_pos) noexcept;
+        void set_camera_lock(std::optional<Vector2> locked_target) noexcept { locked_camera_target = locked_target; }
+        [[nodiscard]] bool is_camera_locked() const noexcept { return locked_camera_target.has_value(); }
         void add_trauma(f32 amount) noexcept;
 
         [[nodiscard]] Vector2 get_camera_target() const noexcept { return camera.target; }
@@ -40,6 +43,7 @@ struct World {
     private:
         std::vector<Star> stars{ };
         Camera2D camera{ };
+        std::optional<Vector2> locked_camera_target{ std::nullopt };
         f32 camera_smooth_speed{ 6.0f };
         f32 trauma{ 0.0f };
         Vector2 ambient_drift{ -14.0f, 20.0f };

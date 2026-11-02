@@ -56,17 +56,56 @@ void ProgressionState::on_player_damaged() noexcept {
     }
 }
 
-ScreenAction ScreenManager::update(f32 dt, const InputState& input, bool player_alive) noexcept {
+ScreenAction ScreenManager::update(
+    f32 dt,
+    const InputState& input,
+    bool player_alive,
+    LevelManager& levels
+) noexcept {
     constexpr f32 two_pi{ 2.0f * std::numbers::pi_v<f32> };
     pulse_timer = std::fmodf(pulse_timer + 3.5f * dt, two_pi);
 
     switch (state) {
-        case ScreenState::Start:
+        case ScreenState::Start: {
+            if (input.nav_left_pressed || input.nav_right_pressed ||
+                input.nav_up_pressed || input.nav_down_pressed) {
+                levels.set_mode(
+                    levels.get_mode() == GameMode::Freestyle ? GameMode::Levels : GameMode::Freestyle
+                );
+            }
             if (input.confirm_pressed) {
+                if (levels.get_mode() == GameMode::Levels) {
+                    state = ScreenState::LevelSelect;
+                    return ScreenAction::None;
+                }
                 state = ScreenState::Playing;
                 return ScreenAction::StartGame;
             }
             break;
+        }
+
+        case ScreenState::LevelSelect: {
+            const u32 cur{ levels.get_current_level() };
+            const u32 max_unlocked{ levels.get_unlocked_levels() };
+            if (input.nav_up_pressed || input.nav_left_pressed) {
+                if (cur > 1) {
+                    levels.set_current_level(cur - 1);
+                }
+            } else if (input.nav_down_pressed || input.nav_right_pressed) {
+                if (cur < max_unlocked && cur < LevelManager::TOTAL_LEVELS) {
+                    levels.set_current_level(cur + 1);
+                }
+            }
+            if (input.menu_pressed || input.pause_pressed) {
+                state = ScreenState::Start;
+                return ScreenAction::None;
+            }
+            if (input.confirm_pressed && cur <= max_unlocked) {
+                state = ScreenState::Playing;
+                return ScreenAction::StartGame;
+            }
+            break;
+        }
 
         case ScreenState::Playing:
             if (!player_alive) {
@@ -89,7 +128,28 @@ ScreenAction ScreenManager::update(f32 dt, const InputState& input, bool player_
                 return ScreenAction::RestartGame;
             }
             if (input.menu_pressed) {
-                state = ScreenState::Start;
+                state = (levels.get_mode() == GameMode::Levels) ? ScreenState::LevelSelect : ScreenState::Start;
+                return ScreenAction::ReturnToTitle;
+            }
+            break;
+
+        case ScreenState::LevelComplete:
+            if (input.confirm_pressed) {
+                const u32 cur{ levels.get_current_level() };
+                if (cur < LevelManager::TOTAL_LEVELS && cur < levels.get_unlocked_levels()) {
+                    levels.set_current_level(cur + 1);
+                    state = ScreenState::Playing;
+                    return ScreenAction::NextLevel;
+                }
+                state = ScreenState::LevelSelect;
+                return ScreenAction::ReturnToTitle;
+            }
+            if (input.restart_pressed) {
+                state = ScreenState::Playing;
+                return ScreenAction::RestartGame;
+            }
+            if (input.menu_pressed) {
+                state = ScreenState::LevelSelect;
                 return ScreenAction::ReturnToTitle;
             }
             break;
@@ -100,7 +160,7 @@ ScreenAction ScreenManager::update(f32 dt, const InputState& input, bool player_
                 return ScreenAction::RestartGame;
             }
             if (input.menu_pressed) {
-                state = ScreenState::Start;
+                state = (levels.get_mode() == GameMode::Levels) ? ScreenState::LevelSelect : ScreenState::Start;
                 return ScreenAction::ReturnToTitle;
             }
             break;
@@ -111,10 +171,12 @@ ScreenAction ScreenManager::update(f32 dt, const InputState& input, bool player_
 
 std::string_view ScreenManager::get_state_name() const noexcept {
     switch (state) {
-        case ScreenState::Start:    return "Start";
-        case ScreenState::Playing:  return "Playing";
-        case ScreenState::Paused:   return "Paused";
-        case ScreenState::GameOver: return "GameOver";
+        case ScreenState::Start:         return "Start";
+        case ScreenState::LevelSelect:   return "LevelSelect";
+        case ScreenState::Playing:       return "Playing";
+        case ScreenState::Paused:        return "Paused";
+        case ScreenState::LevelComplete: return "LevelComplete";
+        case ScreenState::GameOver:      return "GameOver";
     }
     return "Unknown";
 }
@@ -122,6 +184,7 @@ std::string_view ScreenManager::get_state_name() const noexcept {
 void ScreenManager::draw_hud(
     const Spaceship& spaceship,
     const ProgressionState& progression,
+    const LevelManager& levels,
     const EnemyField& enemies,
     const PowerupField& powerups,
     const AsteroidField& asteroids,
@@ -209,46 +272,113 @@ void ScreenManager::draw_hud(
         pw_y += 14;
     }
 
-    // 2. Top-Center Score, Wave & Kill-Chain Multiplier
-    char score_buf[64]{ };
-    std::snprintf(
-        score_buf,
-        sizeof(score_buf),
-        "SCORE %06u   |   WAVE %u",
-        static_cast<u32>(progression.score),
-        progression.current_wave
-    );
-    _draw_centered_text(score_buf, 16, 18, hex_to_color(0xf8fafcff));
+    // 2. Top-Center Score, Mode/Level Objective & Kill-Chain Multiplier
+    char score_buf[96]{ };
+    if (levels.get_mode() == GameMode::Levels) {
+        const LevelDefinition& def{ levels.get_definition() };
+        std::snprintf(
+            score_buf,
+            sizeof(score_buf),
+            "SCORE %06u   |   LVL %u: %s",
+            static_cast<u32>(progression.score),
+            def.level_number,
+            def.title.data()
+        );
+    } else {
+        std::snprintf(
+            score_buf,
+            sizeof(score_buf),
+            "SCORE %06u   |   WAVE %u",
+            static_cast<u32>(progression.score),
+            progression.current_wave
+        );
+    }
+    _draw_centered_text(score_buf, 14, 17, hex_to_color(0xf8fafcff));
+
+    i32 hud_center_y{ 36 };
+    if (levels.get_mode() == GameMode::Levels) {
+        char obj_buf[96]{ };
+        levels.format_objective_status(obj_buf, sizeof(obj_buf));
+        _draw_centered_text(obj_buf, hud_center_y, 13, hex_to_color(0x38bdf8ff));
+        hud_center_y += 16;
+
+        constexpr i32 obj_w{ 220 };
+        constexpr i32 obj_h{ 6 };
+        const i32 obj_x{ (w - obj_w) / 2 };
+        const f32 obj_ratio{ levels.get_objective_progress_ratio() };
+        DrawRectangle(obj_x, hud_center_y, obj_w, obj_h, hex_to_color(0x0f172aff));
+        DrawRectangle(
+            obj_x,
+            hud_center_y,
+            static_cast<i32>(static_cast<f32>(obj_w) * obj_ratio),
+            obj_h,
+            levels.is_portal_active() ? hex_to_color(0xc084fcff) : hex_to_color(0xfacc15ff)
+        );
+        DrawRectangleLines(obj_x, hud_center_y, obj_w, obj_h, hex_to_color(0x334155ff));
+        hud_center_y += 10;
+    }
 
     if (progression.combo_multiplier > 1.0f && progression.combo_timer > 0.0f) {
         char combo_buf[48]{ };
         std::snprintf(combo_buf, sizeof(combo_buf), "x%.1f COMBO", static_cast<f64>(progression.combo_multiplier));
-        _draw_centered_text(combo_buf, 38, 14, hex_to_color(0xfef08aff));
+        _draw_centered_text(combo_buf, hud_center_y, 14, hex_to_color(0xfef08aff));
 
         constexpr i32 c_w{ 110 };
         constexpr i32 c_h{ 4 };
         const i32 c_x{ (w - c_w) / 2 };
         const f32 c_ratio{ std::clamp(progression.combo_timer / ProgressionState::COMBO_DURATION, 0.0f, 1.0f) };
-        DrawRectangle(c_x, 54, c_w, c_h, hex_to_color(0x1e293bff));
-        DrawRectangle(c_x, 54, static_cast<i32>(static_cast<f32>(c_w) * c_ratio), c_h, hex_to_color(0xfef08aff));
+        DrawRectangle(c_x, hud_center_y + 16, c_w, c_h, hex_to_color(0x1e293bff));
+        DrawRectangle(c_x, hud_center_y + 16, static_cast<i32>(static_cast<f32>(c_w) * c_ratio), c_h, hex_to_color(0xfef08aff));
+        hud_center_y += 24;
     }
 
-    // Wave announcement banner
+    // Active Death Zone Lockdown Banner
+    const DeathZoneState& dz{ levels.get_death_zone() };
+    if (dz.active) {
+        const f32 pulse{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer * 2.5f)) };
+        char dz_buf[96]{ };
+        if (dz.cause == DeathZoneCause::BattlestarWarden) {
+            std::snprintf(
+                dz_buf,
+                sizeof(dz_buf),
+                "! BATTLESTAR DEATH ZONE LOCKDOWN (%.1fs) — BORDERS LETHAL !",
+                static_cast<f64>(dz.timer)
+            );
+            _draw_centered_text(dz_buf, hud_center_y + 4, 15, Fade(hex_to_color(0xc084fcff), pulse));
+        } else {
+            std::snprintf(
+                dz_buf,
+                sizeof(dz_buf),
+                "! AMBUSH DEATH ZONE ACTIVE (%.1fs) — BORDERS LETHAL !",
+                static_cast<f64>(dz.timer)
+            );
+            _draw_centered_text(dz_buf, hud_center_y + 4, 15, Fade(hex_to_color(0xef4444ff), pulse));
+        }
+        hud_center_y += 22;
+    }
+
+    // Wave / Level announcement banner
     if (progression.wave_banner_timer > 0.0f && state == ScreenState::Playing) {
         const f32 alpha{ std::clamp(progression.wave_banner_timer / 0.8f, 0.0f, 1.0f) };
-        char wave_banner[64]{ };
-        std::snprintf(wave_banner, sizeof(wave_banner), "WAVE %u", progression.current_wave);
-        _draw_centered_text(wave_banner, 82, 26, Fade(hex_to_color(0x38bdf8ff), alpha));
+        char wave_banner[96]{ };
+        if (levels.get_mode() == GameMode::Levels) {
+            const LevelDefinition& def{ levels.get_definition() };
+            std::snprintf(wave_banner, sizeof(wave_banner), "LEVEL %u: %s", def.level_number, def.title.data());
+        } else {
+            std::snprintf(wave_banner, sizeof(wave_banner), "WAVE %u", progression.current_wave);
+        }
+        _draw_centered_text(wave_banner, hud_center_y + 10, 24, Fade(hex_to_color(0x38bdf8ff), alpha));
     }
 
-    // 3. Off-Screen Threat & Loot Edge Indicators
-    _draw_edge_indicators(enemies, powerups, view_center);
+    // 3. Off-Screen Threat, Objective & Loot Edge Indicators
+    _draw_edge_indicators(levels, enemies, powerups, view_center);
 
     // 4. Bottom-Right Circular Tactical Radar
-    _draw_radar(spaceship, enemies, powerups, asteroids, view_center);
+    _draw_radar(spaceship, levels, enemies, powerups, asteroids, view_center);
 }
 
 void ScreenManager::_draw_edge_indicators(
+    const LevelManager& levels,
     const EnemyField& enemies,
     const PowerupField& powerups,
     Vector2 view_center
@@ -261,7 +391,7 @@ void ScreenManager::_draw_edge_indicators(
     const f32 max_x{ half_w - margin };
     const f32 max_y{ half_h - margin };
 
-    auto draw_edge_marker = [&](Vector2 world_pos, Color color, f32 base_radius) noexcept {
+    auto draw_edge_marker = [&](Vector2 world_pos, Color color, f32 base_radius, i32 sides = 3) noexcept {
         const Vector2 delta{ Vector2Subtract(world_pos, view_center) };
         if (std::fabsf(delta.x) <= half_w && std::fabsf(delta.y) <= half_h) {
             return; // Already visible on screen
@@ -281,9 +411,21 @@ void ScreenManager::_draw_edge_indicators(
         const f32 angle_deg{ std::atan2f(delta.y, delta.x) * RAD2DEG };
         const f32 dist_alpha{ std::clamp(1.15f - (dist - half_w) / 900.0f, 0.35f, 0.95f) };
 
-        DrawPoly(screen_pos, 3, base_radius, angle_deg, Fade(color, dist_alpha));
-        DrawPolyLinesEx(screen_pos, 3, base_radius + 1.5f, angle_deg, 1.5f, Fade(WHITE, dist_alpha * 0.6f));
+        DrawPoly(screen_pos, sides, base_radius, angle_deg, Fade(color, dist_alpha));
+        DrawPolyLinesEx(screen_pos, sides, base_radius + 1.5f, angle_deg, 1.5f, Fade(WHITE, dist_alpha * 0.6f));
     };
+
+    if (levels.get_mode() == GameMode::Levels) {
+        for (const ObjectiveEntity& obj : levels.get_entities()) {
+            if (!obj.active || (obj.type == ObjectiveEntityType::Beacon && obj.completed)) continue;
+            const Color obj_col{
+                obj.type == ObjectiveEntityType::Star   ? hex_to_color(0xfacc15ff) :
+                obj.type == ObjectiveEntityType::Beacon ? hex_to_color(0x38bdf8ff) :
+                                                          hex_to_color(0xc084fcff)
+            };
+            draw_edge_marker(obj.pos, obj_col, 10.5f, 4);
+        }
+    }
 
     for (const EnemySpaceship& enemy : enemies.get_enemies()) {
         if (!enemy.is_alive()) continue;
@@ -316,6 +458,7 @@ void ScreenManager::_draw_edge_indicators(
 
 void ScreenManager::_draw_radar(
     const Spaceship& spaceship,
+    const LevelManager& levels,
     const EnemyField& enemies,
     const PowerupField& powerups,
     const AsteroidField& asteroids,
@@ -324,14 +467,18 @@ void ScreenManager::_draw_radar(
     const f32 w{ static_cast<f32>(GetScreenWidth()) };
     const f32 h{ static_cast<f32>(GetScreenHeight()) };
     constexpr f32 radar_radius{ 48.0f };
-    constexpr f32 world_range{ 950.0f };
+    constexpr f32 world_range{ 1050.0f };
     constexpr f32 scale{ radar_radius / world_range };
     const Vector2 center{ w - radar_radius - 16.0f, h - radar_radius - 16.0f };
 
     // Radar background & range rings
     DrawCircleV(center, radar_radius, Fade(hex_to_color(0x0f172aff), 0.78f));
     DrawRing(center, radar_radius * 0.5f - 0.5f, radar_radius * 0.5f + 0.5f, 0.0f, 360.0f, 32, hex_to_color(0x1e293bff));
-    DrawRing(center, radar_radius - 1.5f, radar_radius, 0.0f, 360.0f, 40, hex_to_color(0x334155ff));
+
+    const Color rim_col{
+        levels.get_death_zone().active ? hex_to_color(0xef4444ff) : hex_to_color(0x334155ff)
+    };
+    DrawRing(center, radar_radius - 2.0f, radar_radius, 0.0f, 360.0f, 40, rim_col);
     DrawLineEx(
         Vector2{ center.x - radar_radius + 4.0f, center.y },
         Vector2{ center.x + radar_radius - 4.0f, center.y },
@@ -366,9 +513,29 @@ void ScreenManager::_draw_radar(
         }
     }
 
-    // Powerup blips (pulsing cyan/green)
+    // Powerup blips (pulsing green)
     for (const Powerup& p : powerups.get_powerups()) {
         DrawCircleV(to_radar(p.pos), 2.8f, hex_to_color(0x22c55eff));
+    }
+
+    // Objective blips (Star, Beacon, Portal)
+    if (levels.get_mode() == GameMode::Levels) {
+        const f32 pulse{ 1.0f + 0.2f * std::sinf(pulse_timer * 2.2f) };
+        for (const ObjectiveEntity& obj : levels.get_entities()) {
+            if (!obj.active) continue;
+            const Vector2 o_blip{ to_radar(obj.pos) };
+            if (obj.type == ObjectiveEntityType::Star) {
+                DrawPoly(o_blip, 4, 5.5f * pulse, 45.0f, hex_to_color(0xfacc15ff));
+                DrawCircleV(o_blip, 2.2f, hex_to_color(0x38bdf8ff));
+            } else if (obj.type == ObjectiveEntityType::Beacon) {
+                const Color b_col{ obj.completed ? hex_to_color(0x4ade80ff) : hex_to_color(0x38bdf8ff) };
+                DrawRing(o_blip, 3.2f, 5.2f * pulse, 0.0f, 360.0f, 20, b_col);
+                DrawCircleV(o_blip, 2.0f, WHITE);
+            } else if (obj.type == ObjectiveEntityType::Portal) {
+                DrawPoly(o_blip, 6, 6.0f * pulse, 0.0f, hex_to_color(0xa855f7ff));
+                DrawCircleV(o_blip, 2.5f, hex_to_color(0x38bdf8ff));
+            }
+        }
     }
 
     // Enemy blips (bright crimson for standard ships, prominent diamond-cross emblem for Battlestar)
@@ -410,16 +577,25 @@ void ScreenManager::_draw_radar(
     }
 }
 
-void ScreenManager::draw_overlay(const ProgressionState& progression) const noexcept {
+void ScreenManager::draw_overlay(
+    const ProgressionState& progression,
+    const LevelManager& levels
+) const noexcept {
     switch (state) {
         case ScreenState::Start:
-            _draw_start(progression);
+            _draw_start(progression, levels);
+            break;
+        case ScreenState::LevelSelect:
+            _draw_level_select(levels);
             break;
         case ScreenState::Paused:
-            _draw_paused();
+            _draw_paused(levels);
+            break;
+        case ScreenState::LevelComplete:
+            _draw_level_complete(progression, levels);
             break;
         case ScreenState::GameOver:
-            _draw_game_over(progression);
+            _draw_game_over(progression, levels);
             break;
         case ScreenState::Playing:
             break;
@@ -432,24 +608,157 @@ void ScreenManager::_draw_centered_text(const char* text, i32 y, i32 font_size, 
     DrawText(text, (w - text_w) / 2, y, font_size, color);
 }
 
-void ScreenManager::_draw_start(const ProgressionState& progression) const noexcept {
+void ScreenManager::_draw_start(
+    const ProgressionState& progression,
+    const LevelManager& levels
+) const noexcept {
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
-    DrawRectangle(0, 0, w, h, Fade(BLACK, 0.45f));
+    DrawRectangle(0, 0, w, h, Fade(BLACK, 0.50f));
 
     const f32 pulse_alpha{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer)) };
 
-    _draw_centered_text("ASTEROIDS ON STEROIDS", h / 2 - 95, 44, hex_to_color(0xfe166dff));
-    _draw_centered_text("WASD: Move | SPACE: Fire | SHIFT: Dash | K/RMB: Strafe Lock | P: Pause", h / 2 - 25, 15, hex_to_color(0x94a3b8ff));
+    _draw_centered_text("ASTEROIDS ON STEROIDS", h / 2 - 125, 44, hex_to_color(0xfe166dff));
+    _draw_centered_text(
+        "WASD: Move | SPACE: Fire | SHIFT: Dash | K/RMB: Strafe Lock | P: Pause",
+        h / 2 - 65,
+        15,
+        hex_to_color(0x94a3b8ff)
+    );
+
+    // Mode Selection Cards
+    const bool is_freestyle{ levels.get_mode() == GameMode::Freestyle };
+    constexpr i32 box_w{ 360 };
+    constexpr i32 box_h{ 36 };
+    const i32 box_x{ (w - box_w) / 2 };
+    const i32 free_y{ h / 2 - 22 };
+    const i32 lvl_y{ h / 2 + 24 };
+
+    DrawRectangle(box_x, free_y, box_w, box_h, is_freestyle ? hex_to_color(0x1e293bff) : hex_to_color(0x0f172acc));
+    DrawRectangleLines(box_x, free_y, box_w, box_h, is_freestyle ? hex_to_color(0x38bdf8ff) : hex_to_color(0x334155ff));
+    _draw_centered_text(
+        is_freestyle ? "> FREESTYLE MODE (ENDLESS WAVES) <" : "FREESTYLE MODE (ENDLESS WAVES)",
+        free_y + 10,
+        16,
+        is_freestyle ? hex_to_color(0x38bdf8ff) : hex_to_color(0x94a3b8ff)
+    );
+
+    DrawRectangle(box_x, lvl_y, box_w, box_h, !is_freestyle ? hex_to_color(0x1e293bff) : hex_to_color(0x0f172acc));
+    DrawRectangleLines(box_x, lvl_y, box_w, box_h, !is_freestyle ? hex_to_color(0xfacc15ff) : hex_to_color(0x334155ff));
+    _draw_centered_text(
+        !is_freestyle ? "> LEVELS MODE (5-STAGE CAMPAIGN) <" : "LEVELS MODE (5-STAGE CAMPAIGN)",
+        lvl_y + 10,
+        16,
+        !is_freestyle ? hex_to_color(0xfacc15ff) : hex_to_color(0x94a3b8ff)
+    );
+
     if (progression.high_score > 0) {
         char best_buf[64]{ };
         std::snprintf(best_buf, sizeof(best_buf), "HIGH SCORE: %06u", static_cast<u32>(progression.high_score));
-        _draw_centered_text(best_buf, h / 2 + 8, 18, hex_to_color(0xfef08aff));
+        _draw_centered_text(best_buf, h / 2 + 74, 17, hex_to_color(0xfef08aff));
     }
-    _draw_centered_text("Press ENTER or SPACE to Start", h / 2 + 48, 24, Fade(hex_to_color(0xf8fafcff), pulse_alpha));
+
+    _draw_centered_text(
+        "W/S or ARROWS: Switch Mode   |   ENTER or SPACE: Select",
+        h / 2 + 108,
+        20,
+        Fade(hex_to_color(0xf8fafcff), pulse_alpha)
+    );
 }
 
-void ScreenManager::_draw_paused() const noexcept {
+void ScreenManager::_draw_level_select(const LevelManager& levels) const noexcept {
+    const i32 w{ GetScreenWidth() };
+    const i32 h{ GetScreenHeight() };
+    DrawRectangle(0, 0, w, h, Fade(BLACK, 0.65f));
+
+    _draw_centered_text("SELECT CAMPAIGN LEVEL", 48, 34, hex_to_color(0xfacc15ff));
+    _draw_centered_text(
+        "Complete objectives & survive Death Zone lockdowns to unlock the next sector",
+        90,
+        15,
+        hex_to_color(0x94a3b8ff)
+    );
+
+    constexpr i32 card_w{ 620 };
+    constexpr i32 card_h{ 64 };
+    const i32 card_x{ (w - card_w) / 2 };
+    i32 y{ 126 };
+
+    const u32 selected{ levels.get_current_level() };
+    const u32 unlocked{ levels.get_unlocked_levels() };
+
+    for (u32 i{ 1 }; i <= LevelManager::TOTAL_LEVELS; ++i) {
+        const LevelDefinition& def{ LevelManager::get_definition(i) };
+        const bool is_sel{ i == selected };
+        const bool is_unl{ i <= unlocked };
+        const bool is_done{ levels.is_level_completed_once(i) };
+
+        const Color bg_col{
+            is_sel ? hex_to_color(0x1e293bff) :
+            is_unl ? hex_to_color(0x0f172aee) :
+                     hex_to_color(0x090d16cc)
+        };
+        const Color border_col{
+            is_sel  ? hex_to_color(0x38bdf8ff) :
+            is_done ? hex_to_color(0x4ade80ff) :
+            is_unl  ? hex_to_color(0x475569ff) :
+                      hex_to_color(0x1e293bff)
+        };
+
+        DrawRectangle(card_x, y, card_w, card_h, bg_col);
+        DrawRectangleLines(card_x, y, card_w, card_h, border_col);
+
+        char header_buf[96]{ };
+        std::snprintf(
+            header_buf,
+            sizeof(header_buf),
+            "%sLEVEL %u: %s",
+            is_sel ? "> " : "  ",
+            def.level_number,
+            def.title.data()
+        );
+        DrawText(
+            header_buf,
+            card_x + 14,
+            y + 10,
+            18,
+            is_unl ? hex_to_color(0xf8fafcff) : hex_to_color(0x64748bff)
+        );
+
+        DrawText(
+            def.objective_summary.data(),
+            card_x + 28,
+            y + 36,
+            14,
+            is_unl ? hex_to_color(0xbae6fdff) : hex_to_color(0x475569ff)
+        );
+
+        const char* status_str{
+            is_done ? "COMPLETED *" :
+            is_unl  ? "UNLOCKED" :
+                      "LOCKED"
+        };
+        const Color status_col{
+            is_done ? hex_to_color(0x4ade80ff) :
+            is_unl  ? hex_to_color(0xfacc15ff) :
+                      hex_to_color(0x64748bff)
+        };
+        const i32 st_w{ MeasureText(status_str, 14) };
+        DrawText(status_str, card_x + card_w - st_w - 16, y + 12, 14, status_col);
+
+        y += card_h + 12;
+    }
+
+    const f32 pulse_alpha{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer)) };
+    _draw_centered_text(
+        "W/S: Select Level   |   ENTER/SPACE: Launch   |   M/ESC: Back",
+        h - 46,
+        18,
+        Fade(hex_to_color(0xf8fafcff), pulse_alpha)
+    );
+}
+
+void ScreenManager::_draw_paused(const LevelManager& levels) const noexcept {
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
     DrawRectangle(0, 0, w, h, Fade(BLACK, 0.55f));
@@ -457,10 +766,62 @@ void ScreenManager::_draw_paused() const noexcept {
     _draw_centered_text("PAUSED", h / 2 - 80, 48, hex_to_color(0x38bdf8ff));
     _draw_centered_text("Press P / ESC / ENTER to Resume", h / 2 - 10, 22, hex_to_color(0xf8fafcff));
     _draw_centered_text("Press R to Restart", h / 2 + 26, 20, hex_to_color(0x94a3b8ff));
-    _draw_centered_text("Press M for Main Menu", h / 2 + 58, 20, hex_to_color(0x94a3b8ff));
+    _draw_centered_text(
+        levels.get_mode() == GameMode::Levels ? "Press M for Level Select" : "Press M for Main Menu",
+        h / 2 + 58,
+        20,
+        hex_to_color(0x94a3b8ff)
+    );
 }
 
-void ScreenManager::_draw_game_over(const ProgressionState& progression) const noexcept {
+void ScreenManager::_draw_level_complete(
+    const ProgressionState& progression,
+    const LevelManager& levels
+) const noexcept {
+    const i32 w{ GetScreenWidth() };
+    const i32 h{ GetScreenHeight() };
+    DrawRectangle(0, 0, w, h, Fade(BLACK, 0.60f));
+
+    const f32 pulse_alpha{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer)) };
+    const LevelDefinition& def{ levels.get_definition() };
+
+    char title_buf[96]{ };
+    std::snprintf(title_buf, sizeof(title_buf), "LEVEL %u COMPLETE!", def.level_number);
+    _draw_centered_text(title_buf, h / 2 - 96, 44, hex_to_color(0x4ade80ff));
+    _draw_centered_text(def.title.data(), h / 2 - 42, 22, hex_to_color(0x38bdf8ff));
+
+    char score_buf[96]{ };
+    std::snprintf(
+        score_buf,
+        sizeof(score_buf),
+        "SECTOR SCORE: %06u   |   BEST: %06u",
+        static_cast<u32>(progression.score),
+        static_cast<u32>(progression.high_score)
+    );
+    _draw_centered_text(score_buf, h / 2 + 2, 18, hex_to_color(0xfef08aff));
+
+    if (def.level_number < LevelManager::TOTAL_LEVELS) {
+        _draw_centered_text(
+            "Press ENTER or SPACE for Next Level",
+            h / 2 + 44,
+            22,
+            Fade(hex_to_color(0xf8fafcff), pulse_alpha)
+        );
+    } else {
+        _draw_centered_text(
+            "CAMPAIGN VICTORY! Press ENTER for Level Select",
+            h / 2 + 44,
+            22,
+            Fade(hex_to_color(0xfacc15ff), pulse_alpha)
+        );
+    }
+    _draw_centered_text("Press R to Replay Level   |   Press M for Level Select", h / 2 + 80, 18, hex_to_color(0x94a3b8ff));
+}
+
+void ScreenManager::_draw_game_over(
+    const ProgressionState& progression,
+    const LevelManager& levels
+) const noexcept {
     const i32 w{ GetScreenWidth() };
     const i32 h{ GetScreenHeight() };
     DrawRectangle(0, 0, w, h, Fade(BLACK, 0.55f));
@@ -470,18 +831,34 @@ void ScreenManager::_draw_game_over(const ProgressionState& progression) const n
     _draw_centered_text("GAME OVER", h / 2 - 90, 48, hex_to_color(0xfe166dff));
 
     char summary[96]{ };
-    std::snprintf(
-        summary,
-        sizeof(summary),
-        "FINAL SCORE: %06u   |   BEST: %06u   |   WAVE %u",
-        static_cast<u32>(progression.score),
-        static_cast<u32>(progression.high_score),
-        progression.current_wave
-    );
+    if (levels.get_mode() == GameMode::Levels) {
+        std::snprintf(
+            summary,
+            sizeof(summary),
+            "FINAL SCORE: %06u   |   BEST: %06u   |   LEVEL %u",
+            static_cast<u32>(progression.score),
+            static_cast<u32>(progression.high_score),
+            levels.get_current_level()
+        );
+    } else {
+        std::snprintf(
+            summary,
+            sizeof(summary),
+            "FINAL SCORE: %06u   |   BEST: %06u   |   WAVE %u",
+            static_cast<u32>(progression.score),
+            static_cast<u32>(progression.high_score),
+            progression.current_wave
+        );
+    }
     _draw_centered_text(summary, h / 2 - 22, 18, hex_to_color(0xfef08aff));
 
     _draw_centered_text("Press R or ENTER to Restart", h / 2 + 24, 22, Fade(hex_to_color(0xf8fafcff), pulse_alpha));
-    _draw_centered_text("Press M for Main Menu", h / 2 + 60, 20, hex_to_color(0x94a3b8ff));
+    _draw_centered_text(
+        levels.get_mode() == GameMode::Levels ? "Press M for Level Select" : "Press M for Main Menu",
+        h / 2 + 60,
+        20,
+        hex_to_color(0x94a3b8ff)
+    );
 }
 
 } // namespace asteroides

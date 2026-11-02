@@ -95,6 +95,10 @@ struct InputState {
     bool pause_pressed{ false };
     bool restart_pressed{ false };
     bool menu_pressed{ false };
+    bool nav_up_pressed{ false };
+    bool nav_down_pressed{ false };
+    bool nav_left_pressed{ false };
+    bool nav_right_pressed{ false };
     bool debug_toggle_pressed{ false };
 
     [[nodiscard]] static InputState poll_hardware() noexcept;

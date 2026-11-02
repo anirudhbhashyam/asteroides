@@ -10,10 +10,36 @@ SRC_DIR=${SCRIPT_DIR}/src
 TEST_DIR=${SCRIPT_DIR}/tests
 OBJ_DIR=obj
 BUILD_TESTS=false
+JOBS=1
 
-if [[ "$1" == "--tests" ]]; then
-    BUILD_TESTS=true
-fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --tests)
+            BUILD_TESTS=true
+            shift
+            ;;
+        --n)
+            if [[ -z "${2:-}" || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+                printf 'Error: --n requires a positive integer argument\n' >&2
+                exit 1
+            fi
+            JOBS="$2"
+            shift 2
+            ;;
+        --n=*)
+            JOBS="${1#*=}"
+            if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
+                printf 'Error: --n requires a positive integer argument\n' >&2
+                exit 1
+            fi
+            shift
+            ;;
+        *)
+            printf 'Error: Unknown option %s\n' "$1" >&2
+            exit 1
+            ;;
+    esac
+done
 
 log() {
     printf '  \033[32m>\033[0m %s\n' "$1"
@@ -40,6 +66,7 @@ LDFLAGS="${FRAMEWORKS} ${LIBS} ${RPATH}"
 
 mkdir -p "${OBJ_DIR}"
 OBJECTS=()
+PIDS=()
 
 compile() {
     local src="$1"
@@ -47,9 +74,29 @@ compile() {
     name="$(basename "${src}" .cpp)"
     local obj="${OBJ_DIR}/${name}.o"
 
-    log "Compiling ${src} -> ${obj}"
-    clang++ -c "${src}" -o "${obj}" ${CXXFLAGS}
     OBJECTS+=("${obj}")
+    log "Compiling ${src} -> ${obj}"
+
+    if [[ "${JOBS}" -le 1 ]]; then
+        clang++ -c "${src}" -o "${obj}" ${CXXFLAGS}
+    else
+        while [[ "${#PIDS[@]}" -ge "${JOBS}" ]]; do
+            local next_pids=()
+            for pid in "${PIDS[@]}"; do
+                if kill -0 "${pid}" 2>/dev/null; then
+                    next_pids+=("${pid}")
+                else
+                    wait "${pid}"
+                fi
+            done
+            PIDS=("${next_pids[@]}")
+            if [[ "${#PIDS[@]}" -ge "${JOBS}" ]]; then
+                sleep 0.02
+            fi
+        done
+        clang++ -c "${src}" -o "${obj}" ${CXXFLAGS} &
+        PIDS+=("$!")
+    fi
 }
 
 for file in ${SRC_DIR}/*.cpp; do
@@ -70,6 +117,10 @@ if [[ "${BUILD_TESTS}" == true ]]; then
         compile "${file}"
     done
 fi
+
+for pid in "${PIDS[@]}"; do
+    wait "${pid}"
+done
 
 log "Linking..."
 if clang++ "${OBJECTS[@]}" -o a.out ${LDFLAGS}; then

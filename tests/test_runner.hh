@@ -27,7 +27,7 @@ struct ScenarioStatus {
 
 struct VisualTestRunner {
     public:
-        static constexpr u64 SCENARIO_COUNT{ 9 };
+        static constexpr u64 SCENARIO_COUNT{ 11 };
 
         VisualTestRunner(Engine& engine_ref, Game& game_ref) noexcept;
 

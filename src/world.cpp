@@ -42,6 +42,7 @@ World::World(Vector2 initial_target, u64 star_count) {
 
 void World::reset_camera(Vector2 target_pos) noexcept {
     camera.target = target_pos;
+    locked_camera_target.reset();
     trauma = 0.0f;
 }
 
@@ -51,8 +52,12 @@ void World::add_trauma(f32 amount) noexcept {
 
 void World::update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept {
     trauma = std::fmaxf(0.0f, trauma - 1.85f * dt);
-    const f32 lerp_factor{ std::fminf(1.0f, camera_smooth_speed * dt) };
-    camera.target = Vector2Lerp(camera.target, target_pos, lerp_factor);
+    if (locked_camera_target.has_value()) {
+        camera.target = *locked_camera_target;
+    } else {
+        const f32 lerp_factor{ std::fminf(1.0f, camera_smooth_speed * dt) };
+        camera.target = Vector2Lerp(camera.target, target_pos, lerp_factor);
+    }
 
     const f32 w{ static_cast<f32>(GetScreenWidth()) };
     const f32 h{ static_cast<f32>(GetScreenHeight()) };

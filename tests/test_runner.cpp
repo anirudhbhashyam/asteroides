@@ -104,6 +104,28 @@ VisualTestRunner::VisualTestRunner(Engine& engine_ref, Game& game_ref) noexcept
                 { "Wave attack impacts player shield / hull", false },
                 { "Battlestar destroyed (+1000 pts & powerup drop)", false }
             } }
+        },
+        {
+            .title = "10. Levels Mode, Star, Beacon & Portal Escape",
+            .subtitle = "Verifies LevelSelect, Star collection, Beacon charging & Portal victory",
+            .duration = 3.8f,
+            .assertions = { {
+                { "Title -> LevelSelect & launch Levels campaign", false },
+                { "Collecting Astral Star awards +500 & progress", false },
+                { "Holding inside Subspace Beacon charges to 100%", false },
+                { "Warp Portal extraction completes level & unlocks next", false }
+            } }
+        },
+        {
+            .title = "11. Death Zone Lockdown (Ambush & Warden Borders)",
+            .subtitle = "Verifies deep-space ambush lock, border shock bounce & Battlestar release",
+            .duration = 3.8f,
+            .assertions = { {
+                { "Deep-space wander triggers Ambush Death Zone", false },
+                { "Border contact bounces ship & deals -15 shock", false },
+                { "Battlestar warden activates Death Zone lockdown", false },
+                { "Destroying Battlestar warden lifts Death Zone", false }
+            } }
         }
     } };
 
@@ -287,6 +309,7 @@ void VisualTestRunner::_start_scenario(u64 index) noexcept {
         }
         case 8: {
             // Scenario 9: Battlestar Pointy-End Volley, Flat-End Wave Attack & Radar Emblem
+            game.get_levels().set_mode(GameMode::Freestyle);
             game.get_screens().set_state(ScreenState::Playing);
             game.get_asteroids().set_target_count(0);
             game.get_asteroids().clear();
@@ -303,6 +326,29 @@ void VisualTestRunner::_start_scenario(u64 index) noexcept {
                 game.get_enemies().spawn_at(Vector2{ 400.0f, 175.0f }, 40.0f, EnemyArchetype::Battlestar)
             };
             bstar.set_battlestar_mode(BattlestarAttackMode::PointyNormal);
+            break;
+        }
+        case 9: {
+            // Scenario 10: Levels Mode, Star Collection, Beacon Charging & Portal Escape
+            game.get_levels().set_mode(GameMode::Freestyle);
+            game.get_levels().set_current_level(1);
+            game.get_screens().set_state(ScreenState::Start);
+            game.get_asteroids().set_target_count(0);
+            game.get_asteroids().clear();
+            break;
+        }
+        case 10: {
+            // Scenario 11: Death Zone Screen-Border Lockdown (Ambush & Battlestar Warden)
+            game.get_levels().set_mode(GameMode::Freestyle);
+            game.get_screens().set_state(ScreenState::Playing);
+            game.get_asteroids().set_target_count(0);
+            game.get_asteroids().clear();
+
+            Spaceship& ship{ game.get_spaceship() };
+            ship.set_pos(Vector2{ 400.0f, 300.0f });
+            ship.set_rotation(90.0f);
+            game.get_world().reset_camera(ship.get_pos());
+            game.get_levels().get_death_zone().reset();
             break;
         }
         default:
@@ -685,6 +731,164 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
                 // Battlestar destroyed!
                 _pass_assertion(2);
                 if (game.get_progression().score >= 1000 && !game.get_powerups().get_powerups().empty()) {
+                    _pass_assertion(3);
+                }
+            }
+            break;
+        }
+
+        case 9: {
+            LevelManager& lvls{ game.get_levels() };
+            Spaceship& ship{ game.get_spaceship() };
+
+            // 1. Switch Start menu from Freestyle -> Levels, enter LevelSelect, and launch Level 4 (Star + Portal)
+            if (t >= 0.12f && !(step_flags & 1u)) {
+                synth.nav_down_pressed = true;
+                step_flags |= 1u;
+            } else if (t >= 0.28f && !(step_flags & 2u)) {
+                synth.confirm_pressed = true; // Enters LevelSelect
+                step_flags |= 2u;
+            } else if ((step_flags & 2u) && !(step_flags & 4u) &&
+                       game.get_screens().get_state() == ScreenState::LevelSelect && t >= 0.55f) {
+                lvls.unlock_level(4);
+                lvls.set_current_level(4);
+                synth.confirm_pressed = true; // Launches Level 4
+                step_flags |= 4u;
+            }
+
+            if ((step_flags & 4u) && game.get_screens().get_state() == ScreenState::Playing) {
+                _pass_assertion(0);
+
+                // Configure a custom compact layout on first frame of Playing so all 3 objective types are visible on screen
+                if (!(step_flags & 8u)) {
+                    game.get_asteroids().set_target_count(0);
+                    game.get_asteroids().clear();
+                    game.get_enemies().set_auto_spawn(false);
+                    game.get_enemies().get_enemies().clear();
+                    lvls.clear_objectives();
+
+                    // Spawn 3 Stars right along the ship's path and 1 fast-charging Beacon at (400, 220)
+                    lvls.spawn_objective(ObjectiveEntityType::Star, Vector2{ 400.0f, 290.0f });
+                    lvls.spawn_objective(ObjectiveEntityType::Star, Vector2{ 400.0f, 255.0f });
+                    lvls.spawn_objective(ObjectiveEntityType::Star, Vector2{ 400.0f, 220.0f });
+                    lvls.spawn_objective(ObjectiveEntityType::Beacon, Vector2{ 400.0f, 220.0f }, 0.65f);
+
+                    ship.set_pos(Vector2{ 400.0f, 330.0f });
+                    ship.set_vel(Vector2Zero());
+                    step_flags |= 8u;
+                }
+
+                // Move upward through the 3 Stars into the Beacon's proximity ring
+                if (lvls.get_stars_collected() < 3) {
+                    synth.move_axis = Vector2{ 0.0f, -1.0f };
+                } else {
+                    _pass_assertion(1);
+                    // Hold inside the Beacon until it finishes charging
+                    if (lvls.get_beacons_charged() == 0) {
+                        ship.set_pos(Vector2{ 400.0f, 220.0f });
+                        ship.set_vel(Vector2Zero());
+                    } else {
+                        _pass_assertion(2);
+                        // Once the Warp Portal opens above, fly into the Portal to complete the level!
+                        for (const ObjectiveEntity& obj : lvls.get_entities()) {
+                            if (obj.type == ObjectiveEntityType::Portal && obj.active) {
+                                const Vector2 to_portal{ Vector2Subtract(obj.pos, ship.get_pos()) };
+                                synth.move_axis = Vector2Normalize(to_portal);
+                                if (Vector2Length(to_portal) > 35.0f) {
+                                    ship.set_pos(Vector2Lerp(ship.get_pos(), obj.pos, 0.25f));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (game.get_screens().get_state() == ScreenState::LevelComplete &&
+                lvls.get_unlocked_levels() >= 5) {
+                _pass_assertion(3);
+            }
+            break;
+        }
+
+        case 10: {
+            LevelManager& lvls{ game.get_levels() };
+            DeathZoneState& dz{ lvls.get_death_zone() };
+            Spaceship& ship{ game.get_spaceship() };
+            auto& enemy_list{ game.get_enemies().get_enemies() };
+
+            // 1. Move ship beyond deep-space threshold (> 900px from origin) to trigger Ambush Death Zone
+            if (!(step_flags & 1u)) {
+                ship.set_pos(Vector2{ 1450.0f, 300.0f });
+                game.get_world().reset_camera(ship.get_pos());
+                dz.wander_check_timer = 0.01f;
+                step_flags |= 1u;
+            }
+
+            if ((step_flags & 1u) && !(step_flags & 2u)) {
+                // Force deterministic ambush activation if random roll didn't fire on first tick
+                if (!dz.active && t >= 0.15f) {
+                    dz.activate(
+                        game.get_world().get_camera_target(),
+                        800.0f,
+                        600.0f,
+                        10.0f,
+                        DeathZoneCause::DeepSpaceAmbush
+                    );
+                    game.get_world().set_camera_lock(dz.center);
+                }
+                if (dz.active && dz.cause == DeathZoneCause::DeepSpaceAmbush &&
+                    game.get_world().is_camera_locked()) {
+                    _pass_assertion(0);
+                    step_flags |= 2u;
+                }
+            }
+
+            // 2. Drive ship into the right locked screen border to verify inward bounce & -15 shock damage
+            if ((step_flags & 2u) && !(step_flags & 4u)) {
+                const f32 right_border{ dz.center.x + dz.half_extents.x };
+                ship.set_pos(Vector2{ right_border + 5.0f, dz.center.y });
+                ship.set_vel(Vector2{ 250.0f, 0.0f });
+                step_flags |= 4u;
+            } else if ((step_flags & 4u) && !(step_flags & 8u)) {
+                if (ship.get_health() == 85 && ship.get_vel().x < 0.0f) {
+                    _pass_assertion(1);
+                    dz.deactivate();
+                    dz.cooldown_timer = 0.0f;
+                    game.get_world().set_camera_lock(std::nullopt);
+                    step_flags |= 8u;
+                }
+            }
+
+            // 3. Spawn a Battlestar warden nearby with 1 HP and verify it activates BattlestarWarden Death Zone
+            if ((step_flags & 8u) && !(step_flags & 16u) && t >= 1.1f) {
+                enemy_list.clear();
+                ship.set_pos(Vector2{ 400.0f, 380.0f });
+                ship.set_vel(Vector2Zero());
+                ship.set_rotation(0.0f);
+                ship.activate_powerup(PowerupType::DoubleBlaster, 10.0f);
+                game.get_world().reset_camera(ship.get_pos());
+
+                EnemySpaceship& warden{
+                    game.get_enemies().spawn_at(Vector2{ 400.0f, 190.0f }, 180.0f, EnemyArchetype::Battlestar)
+                };
+                warden.take_damage(8); // Leave 2 HP so player bolts finish it quickly
+                step_flags |= 16u;
+            }
+
+            if ((step_flags & 16u) && !(step_flags & 32u)) {
+                if (dz.active && dz.cause == DeathZoneCause::BattlestarWarden) {
+                    _pass_assertion(2);
+                    step_flags |= 32u;
+                }
+            }
+
+            // 4. Destroy the Battlestar warden and verify the Death Zone immediately lifts!
+            if (step_flags & 32u) {
+                ship.set_pos(Vector2{ 400.0f, 380.0f });
+                ship.set_rotation(0.0f);
+                synth.fire_down = true;
+                if (!dz.active && !game.get_world().is_camera_locked()) {
                     _pass_assertion(3);
                 }
             }

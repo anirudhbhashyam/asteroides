@@ -22,6 +22,10 @@ InputState InputState::poll_hardware() noexcept {
     state.pause_pressed = IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE);
     state.restart_pressed = IsKeyPressed(KEY_R);
     state.menu_pressed = IsKeyPressed(KEY_M);
+    state.nav_up_pressed = IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP);
+    state.nav_down_pressed = IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN);
+    state.nav_left_pressed = IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT);
+    state.nav_right_pressed = IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT);
     state.debug_toggle_pressed = IsKeyPressed(KEY_F3) || IsKeyPressed(KEY_TAB);
 
     return state;

@@ -5,6 +5,7 @@
 #include "asteroid.hh"
 #include "enemy.hh"
 #include "engine.hh"
+#include "level.hh"
 #include "particle.hh"
 #include "powerup.hh"
 #include "raylib.h"
@@ -27,6 +28,8 @@ struct Game {
         [[nodiscard]] const ScreenManager& get_screens() const noexcept { return screens; }
         [[nodiscard]] ProgressionState& get_progression() noexcept { return progression; }
         [[nodiscard]] const ProgressionState& get_progression() const noexcept { return progression; }
+        [[nodiscard]] LevelManager& get_levels() noexcept { return levels; }
+        [[nodiscard]] const LevelManager& get_levels() const noexcept { return levels; }
         [[nodiscard]] Spaceship& get_spaceship() noexcept { return spaceship; }
         [[nodiscard]] const Spaceship& get_spaceship() const noexcept { return spaceship; }
         [[nodiscard]] World& get_world() noexcept { return world; }
@@ -49,6 +52,7 @@ struct Game {
 
         ScreenManager screens{ };
         ProgressionState progression{ };
+        LevelManager levels{ };
         Spaceship spaceship{ };
         World world;
         ParticleSystem particles{ };
