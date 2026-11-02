@@ -7,6 +7,54 @@ void Spaceship::draw() const noexcept {
     if (!is_alive()) return;
 
     if (sprite.is_valid()) {
+        if ((thrusting || Vector2LengthSqr(vel) > 900.0f) && flame_sprite.is_valid()) {
+            const f32 rad{ rotation * DEG2RAD };
+            const Vector2 forward{ std::sinf(rad), -std::cosf(rad) };
+            const Vector2 right{ std::cosf(rad), std::sinf(rad) };
+            const u32 main_idx{ is_dashing() ? 2u : (flame_frame % FLAME_FRAME_COUNT) };
+            const u32 side_idx{ (main_idx + 1u) % FLAME_FRAME_COUNT };
+
+            const Rectangle main_src{
+                static_cast<f32>(main_idx) * SPRITE_SIZE,
+                0.0f,
+                SPRITE_SIZE,
+                SPRITE_SIZE
+            };
+            const Rectangle side_src{
+                static_cast<f32>(side_idx) * SPRITE_SIZE,
+                0.0f,
+                SPRITE_SIZE,
+                SPRITE_SIZE
+            };
+
+            const f32 speed_factor{ std::clamp(Vector2Length(vel) / 400.0f, 0.35f, 1.0f) };
+            const f32 alpha{ thrusting ? 0.95f : (0.55f * speed_factor) };
+            const Color flame_tint{
+                is_dashing() ? Fade(hex_to_color(0x7dd3fcff), 1.0f) : Fade(WHITE, alpha)
+            };
+
+            // Dual side thruster plumes aligned to the purple rear nozzles (dx = ±6px in sprite space)
+            const f32 side_scale{ scale * (is_dashing() ? 0.78f : 0.62f) };
+            const Vector2 side_back{ Vector2Scale(forward, -14.5f * scale) };
+            const Vector2 left_nozzle{
+                Vector2Add(pos, Vector2Add(side_back, Vector2Scale(right, -5.5f * scale)))
+            };
+            const Vector2 right_nozzle{
+                Vector2Add(pos, Vector2Add(side_back, Vector2Scale(right, 5.5f * scale)))
+            };
+            flame_sprite.draw(left_nozzle, side_src, rotation, side_scale, flame_tint);
+            flame_sprite.draw(right_nozzle, side_src, rotation, side_scale, flame_tint);
+
+            // Central main rocket propeller plume
+            if (thrusting) {
+                const f32 main_scale{ scale * (is_dashing() ? 1.15f : 0.92f) };
+                const Vector2 main_nozzle{
+                    Vector2Subtract(pos, Vector2Scale(forward, 17.0f * scale))
+                };
+                flame_sprite.draw(main_nozzle, main_src, rotation, main_scale, flame_tint);
+            }
+        }
+
         if (is_dashing()) {
             const Vector2 ghost_pos{ Vector2Subtract(pos, Vector2Scale(vel, 0.025f)) };
             sprite.draw(ghost_pos, FRAME_UP, rotation, scale, Fade(hex_to_color(0x38bdf8ff), 0.45f));
@@ -114,6 +162,8 @@ void Spaceship::reset() noexcept {
     dash_cooldown_timer = 0.0f;
     powerup_timers.fill(0.0f);
     halo_pulse_timer = 0.0f;
+    flame_anim_timer = 0.0f;
+    flame_frame = 0;
     thrusting = false;
     strafe_locked = false;
     just_dashed = false;
@@ -160,6 +210,19 @@ void Spaceship::update(const f32 dt, const InputState& input) noexcept {
     bool has_input{ directional_acc.x != 0.0f || directional_acc.y != 0.0f };
     thrusting = has_input || is_dashing();
     strafe_locked = input.strafe_lock_down;
+
+    if (thrusting || Vector2LengthSqr(vel) > 900.0f) {
+        const f32 anim_rate{ is_dashing() ? (FLAME_FPS * 1.6f) : FLAME_FPS };
+        flame_anim_timer += dt * anim_rate;
+        if (flame_anim_timer >= 1.0f) {
+            const u32 steps{ static_cast<u32>(flame_anim_timer) };
+            flame_anim_timer -= static_cast<f32>(steps);
+            flame_frame = (flame_frame + steps) % FLAME_FRAME_COUNT;
+        }
+    } else {
+        flame_anim_timer = 0.0f;
+        flame_frame = 0;
+    }
 
     if (has_input) {
         directional_acc = Vector2Multiply(Vector2Normalize(directional_acc), acc);

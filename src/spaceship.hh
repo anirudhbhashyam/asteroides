@@ -26,7 +26,10 @@ enum class PowerupType : u8 {
 struct Spaceship {
     public:
         static constexpr std::string_view ASSET_NAME{ "spaceship.png" };
+        static constexpr std::string_view FLAME_ASSET_NAME{ "flame.png" };
         static constexpr f32 SPRITE_SIZE{ 32.0f };
+        static constexpr u32 FLAME_FRAME_COUNT{ 4 };
+        static constexpr f32 FLAME_FPS{ 18.0f };
         static constexpr Rectangle FRAME_UP{ 0.0f, 0.0f, SPRITE_SIZE, SPRITE_SIZE };
         static constexpr i32 DEFAULT_MAX_HEALTH{ 100 };
         static constexpr u64 POWERUP_COUNT{ static_cast<u64>(PowerupType::Count) };
@@ -150,6 +153,7 @@ struct Spaceship {
         [[nodiscard]] f32 get_dash_cooldown() const noexcept { return dash_cooldown_timer; }
         [[nodiscard]] bool is_alive() const noexcept { return health > 0; }
         [[nodiscard]] bool is_thrusting() const noexcept { return thrusting; }
+        [[nodiscard]] u32 get_flame_frame() const noexcept { return flame_frame; }
         [[nodiscard]] bool is_dashing() const noexcept { return dash_timer > 0.0f; }
         [[nodiscard]] bool is_strafe_locked() const noexcept { return strafe_locked; }
         [[nodiscard]] bool is_powerup_active(PowerupType type) const noexcept;
@@ -159,6 +163,7 @@ struct Spaceship {
 
     private:
         assets::Sprite sprite{ ASSET_NAME };
+        assets::Sprite flame_sprite{ FLAME_ASSET_NAME };
         Blaster blaster{ };
         Vector2 pos{ static_cast<f32>(GetScreenWidth() / 2), static_cast<f32>(GetScreenHeight() / 2) };
         Vector2 vel{ Vector2Zero() };
@@ -176,6 +181,8 @@ struct Spaceship {
         f32 dash_cooldown_timer{ 0.0f };
         std::array<f32, POWERUP_COUNT> powerup_timers{ };
         f32 halo_pulse_timer{ 0.0f };
+        f32 flame_anim_timer{ 0.0f };
+        u32 flame_frame{ 0 };
         bool thrusting{ false };
         bool strafe_locked{ false };
         bool just_dashed{ false };

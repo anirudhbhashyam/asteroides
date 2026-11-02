@@ -403,7 +403,7 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
             Spaceship& ship{ game.get_spaceship() };
             if (t < 0.9f) {
                 synth.move_axis = Vector2{ 1.0f, 0.0f };
-                if (Vector2Length(ship.get_vel()) > 120.0f) {
+                if (Vector2Length(ship.get_vel()) > 120.0f && ship.is_thrusting() && ship.get_flame_frame() > 0) {
                     _pass_assertion(0);
                 }
                 if (std::fabsf(ship.get_rotation() - 90.0f) < 20.0f) {
