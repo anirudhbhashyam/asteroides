@@ -30,8 +30,9 @@
             min-height: 18px;
         }
         canvas.emscripten {
-            max-width: 96vw;
-            max-height: 92vh;
+            flex: none;
+            width: min(96vw, calc((100vh - 64px) * 16 / 9));
+            height: auto;
             aspect-ratio: 16 / 9;
             border: 2px solid #1e293b;
             border-radius: 6px;
