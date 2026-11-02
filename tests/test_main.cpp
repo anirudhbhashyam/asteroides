@@ -4,8 +4,8 @@
 
 i32 main() {
     asteroides::Engine engine{ asteroides::EngineConfig{
-        .window_width = 800,
-        .window_height = 600,
+        .window_width = 1920,
+        .window_height = 1080,
         .target_fps = 60,
         .title = "Asteroides - Visual Feature Test Suite",
         .rng_seed = 42,

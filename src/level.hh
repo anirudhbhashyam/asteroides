@@ -73,7 +73,7 @@ struct DeathZoneState {
     bool active{ false };
     DeathZoneCause cause{ DeathZoneCause::None };
     Vector2 center{ Vector2Zero() };
-    Vector2 half_extents{ 400.0f, 300.0f };
+    Vector2 half_extents{ 960.0f, 540.0f };
     f32 timer{ 0.0f };
     f32 max_duration{ 12.0f };
     f32 cooldown_timer{ 0.0f };
@@ -273,7 +273,7 @@ struct LevelManager {
         bool boss_defeated{ false };
         bool portal_spawned{ false };
         bool level_just_completed{ false };
-        Vector2 origin_pos{ 400.0f, 300.0f };
+        Vector2 origin_pos{ 960.0f, 540.0f };
 };
 
 } // namespace asteroides

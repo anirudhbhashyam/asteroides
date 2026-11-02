@@ -270,8 +270,8 @@ void VisualTestRunner::_start_scenario(u64 index) noexcept {
             game.get_asteroids().spawn_custom(Vector2{ 400.0f, 185.0f }, Vector2Zero(), 2.0f);
 
             // Off-screen enemy & off-screen powerup to showcase Edge Indicators & Tactical Radar
-            game.get_enemies().spawn_at(Vector2{ 880.0f, 140.0f }, 250.0f);
-            game.get_powerups().spawn_specific(PowerupType::Shield, Vector2{ -110.0f, 440.0f });
+            game.get_enemies().spawn_at(Vector2{ 1650.0f, 140.0f }, 250.0f);
+            game.get_powerups().spawn_specific(PowerupType::Shield, Vector2{ -700.0f, 440.0f });
             break;
         }
         case 7: {
@@ -847,7 +847,7 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
 
             // 1. Move ship beyond deep-space threshold (> 900px from origin) to trigger Ambush Death Zone
             if (!(step_flags & 1u)) {
-                ship.set_pos(Vector2{ 1450.0f, 300.0f });
+                ship.set_pos(Vector2{ 2100.0f, 300.0f });
                 game.get_world().reset_camera(ship.get_pos());
                 dz.wander_check_timer = 0.01f;
                 step_flags |= 1u;
@@ -858,8 +858,8 @@ void VisualTestRunner::_update_scenario(f32 dt) noexcept {
                 if (!dz.active && t >= 0.15f) {
                     dz.activate(
                         game.get_world().get_camera_target(),
-                        800.0f,
-                        600.0f,
+                        static_cast<f32>(engine.get_width()),
+                        static_cast<f32>(engine.get_height()),
                         10.0f,
                         DeathZoneCause::DeepSpaceAmbush
                     );

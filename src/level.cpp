@@ -6,7 +6,10 @@ void DeathZoneState::reset() noexcept {
     active = false;
     cause = DeathZoneCause::None;
     center = Vector2Zero();
-    half_extents = Vector2{ 400.0f, 300.0f };
+    half_extents = Vector2{
+        static_cast<f32>(GetScreenWidth()) * 0.5f,
+        static_cast<f32>(GetScreenHeight()) * 0.5f
+    };
     timer = 0.0f;
     max_duration = 12.0f;
     cooldown_timer = 0.0f;

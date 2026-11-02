@@ -60,6 +60,7 @@ void World::update(f32 dt, Vector2 target_pos, Vector2 target_vel) noexcept {
 
     const f32 w{ static_cast<f32>(GetScreenWidth()) };
     const f32 h{ static_cast<f32>(GetScreenHeight()) };
+    camera.offset = Vector2{ w * 0.5f, h * 0.5f };
     const Vector2 base_vel{ Vector2Subtract(ambient_drift, target_vel) };
 
     for (Star& star : stars) {

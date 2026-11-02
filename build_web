@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+shopt -s nullglob
+
+RELEASE_NAME=raylib-6.0_webassembly
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SRC_DIR=${SCRIPT_DIR}/src
+APP_DIR=${SCRIPT_DIR}/app
+OBJ_DIR=obj_web
+WEB_DIR=web
+EMSDK_DIR="${EMSDK_DIR:-${HOME}/dev/emsdk}"
+JOBS=1
+DEPLOY=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --deploy)
+            DEPLOY=true
+            shift
+            ;;
+        --n)
+            if [[ -z "${2:-}" || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+                printf 'Error: --n requires a positive integer argument\n' >&2
+                exit 1
+            fi
+            JOBS="$2"
+            shift 2
+            ;;
+        --n=*)
+            JOBS="${1#*=}"
+            if [[ ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
+                printf 'Error: --n requires a positive integer argument\n' >&2
+                exit 1
+            fi
+            shift
+            ;;
+        *)
+            printf 'Error: Unknown option %s\n' "$1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+log() {
+    printf '  \033[32m>\033[0m %s\n' "$1"
+}
+
+if ! command -v em++ &> /dev/null; then
+    if [[ -f "${EMSDK_DIR}/emsdk_env.sh" ]]; then
+        log "Activating Emscripten SDK from ${EMSDK_DIR}..."
+        # shellcheck disable=SC1091
+        EMSDK_QUIET=1 source "${EMSDK_DIR}/emsdk_env.sh" > /dev/null 2>&1
+    else
+        printf 'Error: em++ not found and %s/emsdk_env.sh does not exist\n' "${EMSDK_DIR}" >&2
+        exit 1
+    fi
+fi
+
+if [[ ! -d "${RELEASE_NAME}" ]]; then
+    log "Getting raylib for WebAssembly..."
+    curl -LO --fail "https://github.com/raysan5/raylib/releases/download/6.0/${RELEASE_NAME}.zip"
+    unzip -q "${RELEASE_NAME}.zip"
+    log "Cleanup ${RELEASE_NAME}.zip"
+    rm -f "${RELEASE_NAME}.zip"
+fi
+
+INCLUDE="-I./${RELEASE_NAME}/include -I./src"
+CXXFLAGS="-Wall -Wextra -Werror -Wno-missing-field-initializers -std=c++26 -O2 -DPLATFORM_WEB -D_FORTIFY_SOURCE=2 -fstack-protector-strong ${INCLUDE}"
+
+mkdir -p "${OBJ_DIR}" "${WEB_DIR}"
+OBJECTS=()
+PIDS=()
+
+compile() {
+    local src="$1"
+    local name
+    name="$(basename "${src}" .cpp)"
+    local obj="${OBJ_DIR}/${name}.o"
+
+    OBJECTS+=("${obj}")
+    log "Compiling ${src} -> ${obj}"
+
+    if [[ "${JOBS}" -le 1 ]]; then
+        em++ -c "${src}" -o "${obj}" ${CXXFLAGS}
+    else
+        while [[ "${#PIDS[@]}" -ge "${JOBS}" ]]; do
+            local next_pids=()
+            for pid in "${PIDS[@]}"; do
+                if kill -0 "${pid}" 2>/dev/null; then
+                    next_pids+=("${pid}")
+                else
+                    wait "${pid}"
+                fi
+            done
+            PIDS=("${next_pids[@]}")
+            if [[ "${#PIDS[@]}" -ge "${JOBS}" ]]; then
+                sleep 0.02
+            fi
+        done
+        em++ -c "${src}" -o "${obj}" ${CXXFLAGS} &
+        PIDS+=("$!")
+    fi
+}
+
+for file in "${SRC_DIR}"/*.cpp; do
+    if [[ ! -f "${file}" ]]; then
+        continue
+    fi
+    compile "${file}"
+done
+
+for pid in "${PIDS[@]}"; do
+    wait "${pid}"
+done
+
+SHELL_FILE="${APP_DIR}/shell.html"
+cp "${APP_DIR}/bootstrap.js" "${WEB_DIR}/bootstrap.js"
+
+LDFLAGS=(
+    -O2
+    -sUSE_GLFW=3
+    -sASYNCIFY
+    -sTOTAL_MEMORY=67108864
+    -sENVIRONMENT=web
+    -sDYNAMIC_EXECUTION=0
+    -sSTACK_OVERFLOW_CHECK=2
+    -sEXPORTED_FUNCTIONS='["_main"]'
+    -sEXPORTED_RUNTIME_METHODS='[]'
+    --preload-file "${SCRIPT_DIR}/assets@assets"
+    --shell-file "${SHELL_FILE}"
+)
+
+log "Linking WebAssembly bundle -> ${WEB_DIR}/index.html"
+if em++ "${OBJECTS[@]}" "./${RELEASE_NAME}/lib/libraylib.web.a" -o "${WEB_DIR}/index.html" "${LDFLAGS[@]}"; then
+    # Compute and inject SHA-384 Subresource Integrity (SRI) hashes for bootstrap.js and index.js
+    BOOTSTRAP_SRI="sha384-$(openssl dgst -sha384 -binary "${WEB_DIR}/bootstrap.js" | openssl base64 -A)"
+    INDEX_SRI="sha384-$(openssl dgst -sha384 -binary "${WEB_DIR}/index.js" | openssl base64 -A)"
+
+    sed -i '' \
+        -e "s|<script src=\"*bootstrap.js\"*></script>|<script src=\"bootstrap.js\" integrity=\"${BOOTSTRAP_SRI}\" crossorigin=\"anonymous\"></script>|g" \
+        -e "s|<script src=index.js async></script>|<script async src=\"index.js\" integrity=\"${INDEX_SRI}\" crossorigin=\"anonymous\"></script>|g" \
+        -e "s|<script async type=\"*text/javascript\"* src=\"*index.js\"*></script>|<script async src=\"index.js\" integrity=\"${INDEX_SRI}\" crossorigin=\"anonymous\"></script>|g" \
+        "${WEB_DIR}/index.html"
+
+    touch "${WEB_DIR}/.nojekyll"
+
+    log "Wrote hardened WebAssembly bundle in ${WEB_DIR}/ (index.html, index.js, index.wasm, index.data, bootstrap.js)"
+else
+    log "Error linking WebAssembly bundle"
+    exit 1
+fi
+
+if [[ "${DEPLOY}" == true ]]; then
+    log "Deploying ${WEB_DIR}/ to origin/gh-pages..."
+    TMP_GIT_DIR=$(mktemp -d)
+    trap 'rm -rf "${TMP_GIT_DIR}"' EXIT
+    cp -R "${WEB_DIR}/." "${TMP_GIT_DIR}/"
+    (
+        cd "${TMP_GIT_DIR}"
+        git init -q -b gh-pages
+        git add -A
+        git commit -q -m "Deploy Asteroides WebAssembly build to GitHub Pages"
+        REMOTE_URL=$(git -C "${SCRIPT_DIR}" remote get-url origin)
+        git push -f "${REMOTE_URL}" gh-pages:gh-pages
+    )
+    log "Deployed to branch gh-pages!"
+fi

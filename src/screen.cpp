@@ -617,7 +617,7 @@ void ScreenManager::_draw_start(
 
     const f32 pulse_alpha{ 0.55f + 0.45f * (0.5f + 0.5f * std::sinf(pulse_timer)) };
 
-    _draw_centered_text("ASTEROIDS ON STEROIDS", h / 2 - 125, 44, hex_to_color(0xfe166dff));
+    _draw_centered_text("ASTEROIDES", h / 2 - 125, 44, hex_to_color(0xfe166dff));
     _draw_centered_text(
         "WASD: Move | SPACE: Fire | SHIFT: Dash | K/RMB: Strafe Lock | P: Pause",
         h / 2 - 65,

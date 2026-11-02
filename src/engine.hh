@@ -128,10 +128,10 @@ struct TelemetryData {
 };
 
 struct EngineConfig {
-    i32 window_width{ 800 };
-    i32 window_height{ 600 };
+    i32 window_width{ 1920 };
+    i32 window_height{ 1080 };
     i32 target_fps{ 60 };
-    const char* title{ "Asteroids on steroids" };
+    const char* title{ "Asteroides" };
     u32 rng_seed{ 0 };
     bool start_with_debug{ false };
 };
