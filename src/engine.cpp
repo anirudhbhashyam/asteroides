@@ -60,19 +60,19 @@ void Engine::override_input(const InputState& synthetic_input) noexcept {
 }
 
 void Engine::set_time_scale(f32 scale) noexcept {
-    time.time_scale = std::fmaxf(0.0f, scale);
+    time.time_scale = std::max(0.0f, scale);
 }
 
 void Engine::trigger_hitstop(f32 duration) noexcept {
-    time.hitstop_timer = std::fmaxf(time.hitstop_timer, duration);
+    time.hitstop_timer = std::max(time.hitstop_timer, duration);
 }
 
 void Engine::begin_frame(std::optional<f32> fixed_dt) noexcept {
     const f32 raw{ fixed_dt.has_value() ? *fixed_dt : GetFrameTime() };
-    time.raw_dt = std::fminf(raw, 0.1f);
+    time.raw_dt = std::min(raw, 0.1f);
 
     if (time.hitstop_timer > 0.0f) {
-        time.hitstop_timer = std::fmaxf(0.0f, time.hitstop_timer - time.raw_dt);
+        time.hitstop_timer = std::max(0.0f, time.hitstop_timer - time.raw_dt);
         time.dt = 0.0f;
     } else {
         time.dt = time.raw_dt * time.time_scale;
@@ -108,7 +108,7 @@ void Engine::end_frame() const noexcept {
 
     const f32 win_w{ static_cast<f32>(GetScreenWidth()) };
     const f32 win_h{ static_cast<f32>(GetScreenHeight()) };
-    const f32 scale{ std::fminf(win_w / static_cast<f32>(VIRTUAL_WIDTH), win_h / static_cast<f32>(VIRTUAL_HEIGHT)) };
+    const f32 scale{ std::min(win_w / static_cast<f32>(VIRTUAL_WIDTH), win_h / static_cast<f32>(VIRTUAL_HEIGHT)) };
     const f32 dst_w{ static_cast<f32>(VIRTUAL_WIDTH) * scale };
     const f32 dst_h{ static_cast<f32>(VIRTUAL_HEIGHT) * scale };
 
